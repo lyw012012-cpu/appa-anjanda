@@ -24,8 +24,8 @@ CLAUDE.md Claude Code가 읽는 프로젝트 규칙
 1. 필요한 것: Git, Node.js 20 이상, Python 3.11 이상, VS Code, 휴대폰의 **Expo Go** 앱
 2. 저장소 받기
    ```bash
-   git clone https://github.com/<OWNER>/<REPO>.git
-   cd <REPO>
+   git clone https://github.com/lyw012012-cpu/appa-anjanda.git
+   cd appa-anjanda
    git switch develop
    ```
 3. VS Code로 폴더를 열면 오른쪽 아래에 **권장 확장 설치** 알림이 뜹니다. 모두 설치하세요 (Claude Code 포함).
