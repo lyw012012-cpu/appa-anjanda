@@ -1,0 +1,39 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+
+# 환경 변수 / 비밀 정보 (절대 커밋 금지)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+serviceAccountKey*.json
+google-services.json
+GoogleService-Info.plist
+
+# Node (앱 폴더 안에도 별도 .gitignore 있음)
+node_modules/
+
+# Python (ai/)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# AI 데이터와 학습 결과물 (용량 큼, 공유는 드라이브 등으로)
+ai/data/*
+!ai/data/.gitkeep
+ai/models/*
+!ai/models/.gitkeep
+
+# Firebase
+.firebase/
+firebase-debug.log*
+
+# Claude Code 개인 설정
+.claude/settings.local.json
+CLAUDE.local.md
