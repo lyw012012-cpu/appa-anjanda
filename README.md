@@ -15,6 +15,7 @@
 ```
 app/      Expo 앱 (화면은 app/src/app, 스토어는 app/src/stores, Firebase는 app/src/lib)
 ai/       Python 특징 추출·모델 학습 (ai/README.md 참고)
+docs/     설계 문서: 요구사항·아키텍처 결정·실험 계획·이슈 초안 (docs/README.md 색인)
 .vscode/  팀 공용 VS Code 설정과 권장 확장
 .github/  PR 템플릿
 CLAUDE.md Claude Code가 읽는 프로젝트 규칙
