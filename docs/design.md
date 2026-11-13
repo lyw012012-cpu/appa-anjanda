@@ -179,7 +179,7 @@ sequenceDiagram
 | AD2 | `pHabit`은 처음엔 **학습 없이 임베딩 유사도**(익숙해진 소리들과의 최대 코사인)로 계산한다. 라벨이 쌓이면 같은 입력·출력 모양을 지키며 작은 분류기(로지스틱 회귀)로 바꾼다. **YAMNet 파인튜닝은 하지 않는다** | 익숙해진 소리 하나만 생겨도 바로 동작, 학습 데이터 불필요 | "익숙함"을 닮음으로 근사 → E3에서 분류기와 비교, 함수 하나만 바꾸면 되게 `pHabit(candidate, history)` 인터페이스 고정 | D3·D5 |
 | AD3 | 520 유사도는 **두 방식을 다 계산**해 두고 E2로 하나를 고른다 | 실험 전에 막히지 않음, 오프라인이라 비용 0 | 한쪽은 버려짐 | R3 |
 | AD4 | 알람 울림 경로는 I-1 결과로 정한다. 기본 후보: `expo-notifications` 예약 + 소리마다 Android 채널 | — | R1이 틀리면 개발 빌드 + 네이티브 알람 모듈로 → 일정 1~2일 소모 | D1·D2 |
-| AD5 | 실험으로 바뀔 값(`K`·`W`·`T_max`·가중치 `w`·최근 제외 수)은 **설정 파일 하나**(`app/src/lib/recommend-config.ts`)에 모은다 | 실험 결과를 PR 한 줄로 반영 | — | 6절 |
+| AD5 | 실험으로 바뀔 값(`K`·`W`·`T_max`·가중치 `w`·최근 제외 수)은 **설정 파일 하나**(`app/src/config.ts`, [contracts.md C9](contracts.md#c9-설정-실험으로-바뀌는-값))에 모은다 | 실험 결과를 PR 한 줄로 반영 | — | 6절 |
 | AD6 | 이벤트는 기기에 먼저 저장하고 Firestore에 올린다(익명 인증, 사용자별 경로) | 오프라인에서도 기록 유지, Python 분석 가능 | 익명 계정은 앱 재설치 시 기록 끊김 → 공모전 범위에선 감수 | D3 |
 
 YAMNet 파인튜닝을 빼는 이유(팀원 원안과 다른 점): 사용자 한 명이 하루 1~2번 알람을 울리므로 8일 동안 라벨이 10개 남짓이다. 1024칸 입력에 라벨 10개로 신경망을 다시 학습하면 외우기만 하고, 학습할 서버도 따로 필요하다. 원안의 "익숙해진 소리 묶음을 학습해 다른 소리의 익숙함을 0~1로 예측"은 AD2가 같은 입력·출력으로 대신한다.
@@ -188,16 +188,7 @@ YAMNet 파인튜닝을 빼는 이유(팀원 원안과 다른 점): 사용자 한
 
 ### 4.1 신호 → 익숙해짐
 
-알람 한 번의 결과:
-
-| 결과 | 조건 | 나쁜 신호 |
-|---|---|---|
-| `dismissed` | `T_ok`(기본 60초) 안에 끄기, 스누즈 없음 | 0 |
-| `dismissed_late` | 끄기는 했지만 `T_ok` 넘음 | 0.5 |
-| `snoozed` | 스누즈를 한 번 이상 | 1 |
-| `timeout` | `T_max`(기본 5분) 동안 반응 없음 | 1 |
-
-소리별 판정: 최근 `W`(기본 5)번 재생의 나쁜 신호 합 ≥ `K`(기본 2) 이면 `habituated = true`. 기본값은 모두 [가설], E4에서 바꾼다.
+알람 한 번의 결과를 `dismissed`·`dismissed_late`·`snoozed`·`timeout` 넷으로 나누고, 소리마다 최근 `W`번의 나쁜 신호 합이 `K` 이상이면 익숙해짐으로 본다. 판정 규칙은 [contracts.md C6](contracts.md#c6-결과-판정-규칙-a가-c5-안에서-적용), 익숙해짐 규칙은 [C8](contracts.md#c8-추천-모듈-b-제공-c10화면이-사용), 기본값은 [C9](contracts.md#c9-설정-실험으로-바뀌는-값)에만 둔다.
 
 ### 4.2 점수
 
@@ -223,41 +214,7 @@ score(c)    = w · novelty(c) + (1 − w) · sim520(c)                  # w 기�
 
 ### 4.4 데이터 계약
 
-`sounds.json` (파이프라인 → 앱)
-
-```json
-{
-  "version": 1,
-  "model": "yamnet",
-  "sounds": [
-    {
-      "id": "bell-01",
-      "file": "bell-01.mp3",
-      "title": "탁상 벨",
-      "group": "bell",
-      "license": "CC0 / 출처 URL",
-      "durationSec": 12.4,
-      "embedding": [0.0, "... 1024개"],
-      "sim520": { "emb": 0.41, "mel": 0.63, "hand": 0.20 },
-      "top3": ["Alarm clock", "Bell", "Ding"]
-    }
-  ]
-}
-```
-
-`group`은 사람이 붙인 계열(E1 검증용), `top3`는 YAMNet 분류 결과(설명·검증용).
-
-`AlarmEvent` (앱 → Firestore `users/{uid}/events/{eventId}`)
-
-| 필드 | 형식 | 예 |
-|---|---|---|
-| `alarmId` | string | `"a1"` |
-| `soundId` | string | `"bell-01"` |
-| `scheduledAt` | ISO 시각 | `"2026-11-16T07:00:00+09:00"` |
-| `outcome` | `dismissed`·`dismissed_late`·`snoozed`·`timeout` | `"snoozed"` |
-| `responseSec` | number \| null | `142` |
-| `snoozeCount` | number | `1` |
-| `scoreAtPick` | `{ score, pHabit, sim520, w }` | 추천 당시 값(나중에 분석용) |
+사람 사이를 오가는 데이터·함수·파일·저장 위치는 전부 [contracts.md](contracts.md)에 있다.
 
 ### 4.5 소리 상태
 
@@ -273,8 +230,8 @@ stateDiagram-v2
 
 | 대상 | 수준 | 데이터 | 자동 |
 |---|---|---|---|
-| 점수·판정 함수(4.1·4.2) | 단위 | 손으로 만든 3차원 임베딩 몇 개 | 예 (assert 하나짜리 파일) |
-| `sounds.json` 모양 | 단위 | 파이프라인 출력 | 예 (1024칸, 0~1 범위, id 중복 없음) |
+| 점수·판정 함수(4.1·4.2) | 단위 | [contracts.md 8절](contracts.md#8-가짜-데이터-먼저-시작하는-사람용)의 가짜 데이터와 기대 결과 | 예 |
+| `sounds.json` 모양 | 단위 | 파이프라인 출력 | 예 ([contracts.md C2](contracts.md#c2-soundsjson-파이프라인--앱) 규칙을 파이프라인과 앱 로더가 둘 다 검사) |
 | Q1 알람 지연 | 실기기 | 2분 뒤 알람 10회 | 아니오, 표로 기록 |
 | Q2 계산 시간 | 실기기 | 소리 목록 전체 | 아니오 |
 | Q5 시연 | 실기기 | 스누즈를 K번 눌러 만듦 | 아니오, 녹화 |
