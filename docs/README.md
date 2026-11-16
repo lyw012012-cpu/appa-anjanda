@@ -18,7 +18,8 @@ docs/
 ├── architecture/   아키텍처 제약: 구조 규칙과 도구로 막는 방법
 │   └── README.md
 └── system/         시스템 제약: 타입 검사·린트, 자동 테스트, 검증 다각화
-    └── README.md
+    ├── README.md
+    └── design-checklist.md   설계·점검 체크리스트 (실제로 생긴 허점 모음)
 ```
 
 | 폴더 | 문서 | 담는 것 | 단계 |
@@ -28,6 +29,7 @@ docs/
 | 컨텍스트 | [issues-draft.md](context/issues-draft.md) | 이슈 초안, 의존성 그래프, 담당 제안, 마일스톤 | 이슈 나누기 |
 | 아키텍처 제약 | [architecture/](architecture/README.md) | 계층·의존 방향, 구조 규칙 M1~M10과 ESLint로 막는 방법 | 상세 설계 |
 | 시스템 제약 | [system/](system/README.md) | 타입 검사·린트, 자동 테스트, 검증 다각화 | 검증 |
+| 시스템 제약 | [design-checklist.md](system/design-checklist.md) | 설계·문서·규칙을 쓰거나 "됐다"고 말하기 전에 보는 체크리스트 | 점검 |
 
 진입점은 루트 [AGENTS.md](../AGENTS.md), 진행 상황은 [PROGRESS.md](../PROGRESS.md).
 

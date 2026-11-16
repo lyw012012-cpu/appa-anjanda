@@ -16,6 +16,7 @@
 - 이슈의 완료 조건([docs/context/issues-draft.md](docs/context/issues-draft.md))대로 동작한다.
 - `npm run check`와 관련 테스트를 **실제로 돌려** 통과했다. 테스트를 지우거나 기대값을 바꿔서 통과시키지 않는다.
 - 돌린 명령과 결과를 PROGRESS.md "완료"의 증거 칸에 적었다.
+- 설계·문서·규칙을 바꿨으면 [docs/system/design-checklist.md](docs/system/design-checklist.md)에서 해당 절을 확인했다. "됐다"고 말할 때는 어디까지 확인했는지(타입·린트 / 번들 / 휴대폰 / 서버 / 기능)와 확인 못 한 것을 같이 말한다.
 
 **끝낼 때**: PROGRESS.md 갱신(확인 못 한 것 포함) → 안전한 상태에서 커밋 → 다음 세션이 시작 3번부터 바로 할 수 있게 둔다.
 
