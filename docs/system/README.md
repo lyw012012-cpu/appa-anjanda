@@ -12,7 +12,7 @@
 | 아키텍처 규칙 | 같은 명령. [architecture/](../architecture/README.md) M1~M4가 ESLint에 들어 있음 | ✅ |
 | AI (Python) | 정하지 않음 | ⬜ |
 
-## 2. 자동 검증 테스트 (추천안, 팀 확정 전 · contracts 10절)
+## 2. 자동 검증 테스트 (2026-11-17 확정: jest-expo + pytest, 설치 전)
 
 | 대상 | 도구 | 데이터 | 상태 |
 |---|---|---|---|

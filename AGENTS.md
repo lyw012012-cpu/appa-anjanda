@@ -37,12 +37,12 @@
 | 영역 | 기술 | 위치 |
 |---|---|---|
 | 앱 언어 | JavaScript, TypeScript | `app/` |
-| AI·학습 언어 | Python (librosa, YAMNet 임베딩). 오프라인에서 미리 계산 | `ai/src/` |
+| AI·학습 언어 | Python. 오프라인에서 미리 계산. **AI 개념 설계 진행 중** (YAMNet 임베딩은 초안) | `ai/src/` |
 | 프론트엔드 프레임워크 | Expo SDK 58 (React Native 0.88, React 19), 라우팅은 Expo Router (파일 = 화면) | `app/src/app/` |
 | 서버·백엔드 | Firebase (Firestore 보관용, 익명 인증). **서버 연산 없음** | `app/src/lib/firebase.ts`, `app/.env` |
 | 상태 (화면에 영향을 주는 동적 데이터) | Zustand | `app/src/stores/` |
 | UI (화면 구성 요소) | React Native Reusables | `app/src/components/` |
-| 실험 값 | `K`·`W`·`T_max`·가중치 등 한 파일에 모음 | `app/src/config.ts` (contracts C9) |
+| 실험 값 | 실험으로 바뀔 값을 한 파일에 모음. 이름과 기본값은 contracts C9 | `app/src/config.ts` |
 
 데이터 흐름: `ai/` 파이프라인 → `app/src/data/sounds.json`(커밋됨, 손으로 수정 금지) → 앱이 벡터 연산으로 추천 → 이벤트는 기기 저장 후 Firestore.
 
@@ -68,8 +68,8 @@ cd ai && python -m src.features <wav>
 ```
 
 - 빌드: EAS(`npx eas-cli@latest build`)만 쓴다. 로컬 Xcode·Android Studio 불필요.
-- 테스트 (추천안, 팀 확정 전): 앱 **jest-expo**, AI **pytest**, E2E 없음. 대상·검증 층은 [docs/system/](docs/system/README.md).
-  - 설치는 확정된 뒤에: `cd app && npx expo install jest-expo jest @types/jest -- --save-dev`, `cd ai && pip install pytest`
+- 테스트 (2026-11-17 확정): 앱 **jest-expo**, AI **pytest**, E2E 없음. 대상·검증 층은 [docs/system/](docs/system/README.md).
+  - 설치 (아직 안 함): `cd app && npx expo install jest-expo jest @types/jest -- --save-dev`, `cd ai && pip install pytest`
 
 ## 5. 코딩 규칙
 

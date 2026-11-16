@@ -21,7 +21,18 @@ const noScreenImport = {
 };
 // M2: 추천 모듈은 순수 함수 (contracts C8)
 const noSideEffectImport = {
-  group: ['firebase', 'firebase/*', 'expo-*', '@react-native-async-storage/*', '@/lib/alarm', '@/lib/firebase', '@/stores/*'],
+  // 별칭(@/lib/alarm)과 상대 경로(./alarm, ../stores/x)를 모두 막는다
+  group: [
+    'firebase',
+    'firebase/*',
+    'expo-*',
+    '@react-native-async-storage/*',
+    '**/lib/alarm',
+    '**/lib/firebase',
+    '**/stores/*',
+    './alarm',
+    './firebase',
+  ],
   message: 'M2: 추천 모듈은 순수 함수입니다. 시간·저장소·네트워크·알람에 접근하지 않습니다 (docs/architecture/README.md).',
 };
 
@@ -53,7 +64,16 @@ module.exports = defineConfig([
       'no-restricted-properties': [
         'error',
         { object: 'Date', property: 'now', message: 'M2: 추천 모듈은 현재 시각을 읽지 않습니다. 시각은 인자로 받습니다.' },
+        { object: 'performance', property: 'now', message: 'M2: 추천 모듈은 현재 시각을 읽지 않습니다. 시각은 인자로 받습니다.' },
         { object: 'Math', property: 'random', message: 'M2: 추천 모듈은 무작위를 쓰지 않습니다. 같은 입력이면 같은 결과여야 합니다.' },
+      ],
+      // 인자 없는 new Date()는 현재 시각. new Date('2026-…')처럼 값을 주는 것은 허용
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+          message: 'M2: 추천 모듈은 현재 시각을 읽지 않습니다. 시각은 인자로 받습니다.',
+        },
       ],
       'no-restricted-globals': [
         'error',

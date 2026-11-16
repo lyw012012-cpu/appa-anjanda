@@ -18,13 +18,13 @@
 | # | 규칙 | 출처 | 기계로 막는 방법 | 상태 |
 |---|---|---|---|---|
 | M1 | 휴대폰에서 신경망을 돌리지 않는다 | D4, AD1 | ESLint `no-restricted-imports`로 `@tensorflow/*`, `*tflite*`, `onnxruntime*` 금지 | ✅ |
-| M2 | 추천 모듈(`lib/recommend.ts`, `lib/sound-library.ts`)은 순수·결정적 함수. 시간·무작위·저장소·네트워크 접근 금지 | C8 | 두 파일에만 ESLint `no-restricted-imports`(`firebase`, `expo-*`, 저장소, `@/lib/alarm`, `@/stores/*`), `no-restricted-properties`(`Date.now`, `Math.random`), `no-restricted-globals`(`fetch`) | ✅ |
+| M2 | 추천 모듈(`lib/recommend.ts`, `lib/sound-library.ts`)은 순수·결정적 함수. 시간·무작위·저장소·네트워크 접근 금지 | C8 | 두 파일에만 ESLint `no-restricted-imports`(`firebase`, `expo-*`, 저장소, alarm·firebase·stores를 별칭과 상대 경로 모두), `no-restricted-properties`(`Date.now`, `performance.now`, `Math.random`), `no-restricted-syntax`(인자 없는 `new Date()`), `no-restricted-globals`(`fetch`) | ✅ |
 | M3 | 앱은 Firestore를 읽지 않는다 (쓰기만) | C11 | ESLint `no-restricted-imports`로 `firebase/firestore`의 `getDoc`·`getDocs`·`onSnapshot` 등 금지 | ✅ |
 | M4 | 위 의존 방향. `lib/`·`stores/`는 화면을 import하지 않는다 | app/AGENTS.md | `lib/`·`stores/`에 ESLint `no-restricted-imports`로 `@/app/*` 금지 | ✅ |
 | M5 | `sounds.json`·`sound-assets.ts`·`app/assets/sounds/`는 파이프라인 출력. 손으로 고치지 않는다 | C2, C3 | 앱 로더와 파이프라인이 둘 다 C2 규칙(ID 형식·정렬·임베딩 길이·L2 노름) 검사, 테스트로 확인 | ⬜ |
 | M6 | 소리 ID는 `^[a-z][a-z0-9_]{0,31}$` (하이픈 금지) | 1절 | M5의 로더·파이프라인 검사에 포함 | ⬜ |
 | M7 | `pHabit(candidate, history)`, 알람 모듈(`lib/alarm.ts`) 함수 모양 고정 | AD2, C5 | contracts C4 공유 타입으로 선언 → 모양이 바뀌면 `tsc`가 실패 | ⬜ (타입 파일 생기면 ✅) |
-| M8 | 실험값(`K`·`W`·`T_max`·가중치 등)은 `config.ts`에만 | AD5, C9 | 도구로 막기 어려움 → PR 리뷰 | — |
+| M8 | 실험으로 바뀔 값(이름은 contracts C9)은 `config.ts`에만 | AD5, C9 | 도구로 막기 어려움 → PR 리뷰 | — |
 | M9 | `app/android/`·`app/ios/`를 커밋하지 않는다 | app/AGENTS.md | `app/.gitignore`의 `/android`, `/ios` | ✅ |
 | M10 | 비밀 파일·`ai/data/`·`ai/models/`를 커밋하지 않는다 | README | `.gitignore` + PR 템플릿 체크박스 | ✅ |
 
