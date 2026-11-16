@@ -9,11 +9,27 @@
 
 ## 문서 색인
 
-| 문서 | 담는 것 | 단계 |
-|---|---|---|
-| [design.md](design.md) | 범위, 드라이버·품질 목표, 가정·위험, 그림, 아키텍처 결정(권장), 상세 설계(점수 공식·데이터 계약), **구현하면서 하는 실험 표** | 요구사항·설계 |
-| [contracts.md](contracts.md) | **3명 사이의 모든 계약**: 공유 타입, 함수 모양, 파일·저장 위치, 판정 규칙, 설정, Firestore, 가짜 데이터와 기대 결과, 계약 변경 절차 | 상세 설계 |
-| [issues-draft.md](issues-draft.md) | 이슈 초안, 의존성 그래프, 담당 제안, 마일스톤 | 이슈 나누기 |
+```
+docs/
+├── context/        컨텍스트: 무엇을 왜 만드나, 3명 사이 약속, 할 일
+│   ├── design.md
+│   ├── contracts.md
+│   └── issues-draft.md
+├── architecture/   아키텍처 제약: 구조 규칙과 도구로 막는 방법
+│   └── README.md
+└── system/         시스템 제약: 타입 검사·린트, 자동 테스트, 검증 다각화
+    └── README.md
+```
+
+| 폴더 | 문서 | 담는 것 | 단계 |
+|---|---|---|---|
+| 컨텍스트 | [design.md](context/design.md) | 범위, 드라이버·품질 목표, 가정·위험, 그림, 아키텍처 결정(권장), 상세 설계(점수 공식·데이터 계약), **구현하면서 하는 실험 표** | 요구사항·설계 |
+| 컨텍스트 | [contracts.md](context/contracts.md) | **3명 사이의 모든 계약**: 공유 타입, 함수 모양, 파일·저장 위치, 판정 규칙, 설정, Firestore, 가짜 데이터와 기대 결과, 계약 변경 절차 | 상세 설계 |
+| 컨텍스트 | [issues-draft.md](context/issues-draft.md) | 이슈 초안, 의존성 그래프, 담당 제안, 마일스톤 | 이슈 나누기 |
+| 아키텍처 제약 | [architecture/](architecture/README.md) | 계층·의존 방향, 구조 규칙 M1~M10과 ESLint로 막는 방법 | 상세 설계 |
+| 시스템 제약 | [system/](system/README.md) | 타입 검사·린트, 자동 테스트, 검증 다각화 | 검증 |
+
+진입점은 루트 [AGENTS.md](../AGENTS.md), 진행 상황은 [PROGRESS.md](../PROGRESS.md).
 
 ## 일정 (오늘 2026-11-14 기준, 8일)
 
