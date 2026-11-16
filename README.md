@@ -22,7 +22,7 @@ CLAUDE.md Claude Code가 읽는 프로젝트 규칙
 ```
 
 ## 처음 시작하기
-1. 필요한 것: Git, Node.js 20 이상, Python 3.11 이상, VS Code, 휴대폰의 **Expo Go** 앱
+1. 필요한 것: Git, Node.js 20 이상, Python 3.11 이상, VS Code, 휴대폰의 **Expo Go** 앱(화면 확인용. 알람 소리는 EAS 개발 빌드에서만 울림, PROGRESS D14)
 2. 저장소 받기
    ```bash
    git clone https://github.com/lyw012012-cpu/appa-anjanda.git
