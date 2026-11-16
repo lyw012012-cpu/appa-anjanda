@@ -189,7 +189,7 @@ Expo 템플릿 화면을 실제 화면으로 바꾼다: 알람 목록·추가·�
 - 이게 끝나면: I-9
 
 ### 할 일
-- [ ] 템플릿 화면·컴포넌트 정리(`npm run reset-project` 또는 직접)
+- [x] 템플릿 화면·컴포넌트 정리 (2026-11-16 `fix/remove-example-code`에서 직접 삭제, `reset-project` 스크립트도 삭제)
 - [ ] 목록·추가(시각 선택)·삭제, 기존 `useAlarmStore` 사용
 - [ ] 알람 카드에 "다음 소리: 탁상 벨 (낯섦 0.8 · 520 유사 0.6)"
 - [ ] 끈 직후 "이 소리, 익숙했나요?" 예·아니오·건너뛰기 → `recordSelfReport`([C10](contracts.md#c10-연결-순서-a-제공)·[C12](contracts.md#c12-화면이-읽는-상태-a-화면--b-추천)). `timeout`이면 묻지 않음
