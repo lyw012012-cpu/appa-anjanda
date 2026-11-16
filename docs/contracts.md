@@ -64,6 +64,13 @@ flowchart LR
 | `license` | 문자열 | `CC0`, `CC-BY-4.0`, `자체 제작` 등. 빈 칸이면 파이프라인이 거부 |
 | `source_url` | 문자열 | 자체 제작이면 `-` |
 
+세 쌍 비교(E1, I-12):
+
+| 파일 | 열 | 규칙 |
+|---|---|---|
+| `ai/data/triplets.csv` (git 제외) | `qid`·`anchor`·`a`·`b` | 소리 ID. 30문항. 같은 계열 안 문항과 다른 계열 문항을 섞는다. 전원이 같은 파일로 답한다 |
+| `ai/data/triplet_answers.csv` (git 제외) | `rater`·`qid`·`choice` | `rater`는 `r1`·`r2`·`r3`(이름 대신). `choice`는 `a`·`b` |
+
 ## C2. `sounds.json` (파이프라인 → 앱)
 
 - 위치: `app/src/data/sounds.json` (**커밋함**, 파이프라인 출력이며 사람이 손으로 고치지 않는다)
@@ -74,11 +81,11 @@ flowchart LR
 |---|---|
 | `schemaVersion` | `1`. 아래 규칙이 깨지는 변경이면 올린다(9절) |
 | `generatedAt` | 생성 시각(1절 시각 규칙) |
-| `model.name` | `"yamnet"` |
-| `model.embeddingDim` | `1024` (가짜 데이터는 `4`). 모든 `embedding` 길이와 같아야 함 |
+| `model.space` | `"yamnet"`·`"logmel"`·`"hand"`. E1에서 고른 거리 공간([design.md AD7](design.md#3-아키텍처-결정-권장)). 기본 `"yamnet"` |
+| `model.embeddingDim` | 공간에 따라 `1024`·`64`·손 특징 수 (가짜 데이터는 `4`). 모든 `embedding` 길이와 같아야 함 |
 | `sounds` | 1개 이상. `id` 중복 없음. `id` 오름차순 정렬 |
 | `sounds[].embedding` | 길이 `embeddingDim`, **L2 노름 1 ± 1e-3**, 소수 5자리 |
-| `sounds[].sim520.emb·mel·hand` | 각각 0~1. 세 방식 모두 항상 채운다(어느 것을 쓸지는 C9 `sim520Method`) |
+| `sounds[].sim520.emb·mel·hand` | 각각 0~1. 세 방식 모두 항상 채운다(어느 것을 쓸지는 C9 `sim520Method`). `emb`는 `model.space`와 상관없이 YAMNet 임베딩으로 계산 |
 | `sounds[].durationSec` | 0보다 큼. 알림 소리 길이 제한은 R1 결과로 정한다(10절) |
 | `sounds[].top3` | YAMNet 상위 3개 클래스 이름(영어 원문). 설명·검증용, 점수에 안 씀 |
 | `sounds[].file` | C3의 파일 이름과 같음 |
@@ -105,6 +112,7 @@ export type AlarmId = string; // 1절 규칙
 export type IsoTime = string; // 1절 규칙
 export type SoundGroup = 'bell' | 'melody' | 'beep' | 'nature' | 'voice' | 'other';
 export type Sim520Method = 'emb' | 'mel' | 'hand';
+export type SimSpace = 'yamnet' | 'logmel' | 'hand';
 
 export interface Sound {
   id: SoundId;
@@ -122,7 +130,7 @@ export interface Sound {
 export interface SoundLibrary {
   schemaVersion: 1;
   generatedAt: IsoTime;
-  model: { name: 'yamnet'; embeddingDim: number };
+  model: { space: SimSpace; embeddingDim: number };
   sounds: Sound[];
 }
 
@@ -134,6 +142,9 @@ export interface Alarm {
 }
 
 export type Outcome = 'dismissed' | 'dismissed_late' | 'snoozed' | 'timeout';
+
+/** 끈 뒤 "익숙했나요?" 답. 건너뛰면 null */
+export type SelfReport = 'familiar' | 'not_familiar' | null;
 
 /** 알람 한 번(occurrence)의 결과. C5가 만든다 */
 export interface OccurrenceOutcome {
@@ -164,13 +175,15 @@ export interface AlarmEvent extends OccurrenceOutcome {
   eventId: string; // 1절 규칙
   pick: PickSnapshot | null; // 추천 없이 정한 소리(첫 알람 직후 등)면 null
   appVersion: string; // app.json version
+  selfReport?: SelfReport; // 끈 경우에만. 아직 안 물었으면 필드 없음. v1 추천에는 안 씀
 }
 
 export interface SoundStat {
   soundId: SoundId;
   plays: number; // 이 소리의 이벤트 수
-  recentBad: number; // 최근 W개 이벤트의 나쁜 신호 합
-  habituated: boolean;
+  habitStrength: number; // H, design.md 4.2
+  pHabit: number; // 1 − exp(−H)
+  habituated: boolean; // pHabit ≥ habituatedAt
   lastPlayedAt: IsoTime | null;
 }
 
@@ -247,6 +260,7 @@ export function syncPending(): Promise<{ synced: number; failed: number }>;
 ```
 
 - 로컬 저장소 키: `appa.events.v1`. 업로드 여부는 저장소 안 `syncedIds`로만 관리하고 `AlarmEvent`에 넣지 않는다
+- 이미 있는 `eventId`를 덮어쓰면(예: `selfReport`를 나중에 붙임) 그 ID를 `syncedIds`에서 빼서 다시 올린다
 - 로컬 저장 기술: Zustand `persist` + `@react-native-async-storage/async-storage` [권장]. A가 뼈대 단계에서 `npx expo install`로 추가
 
 ## C8. 추천 모듈 (B 제공, C10·화면이 사용)
@@ -262,24 +276,26 @@ export function computeStats(
   library: SoundLibrary,
   events: readonly AlarmEvent[],
   config: RecommendConfig,
+  now: IsoTime, // 순수 함수라 시계를 직접 읽지 않고 받는다
 ): Record<SoundId, SoundStat>;
 
 export function recommend(input: {
   library: SoundLibrary;
   events: readonly AlarmEvent[];
   config: RecommendConfig;
+  now: IsoTime;
 }): Recommendation;
 ```
 
 **동작 규칙** (수식은 [design.md 4.2](design.md#42-점수))
 
-1. 익숙해짐: 그 소리의 이벤트를 `occurrenceAt` 내림차순으로 최근 `window`개 → `badSignalWeight` 합 ≥ `threshold`
+1. 습관화 강도: `H(c) = Σ_e badSignalWeight[e.outcome] × sim(c, e.soundId) × exp(−Δ일 / tauDays)`. `Δ일` = (`now` − `e.occurrenceAt`)을 일 단위 소수로. `now`보다 뒤의 이벤트는 무시. `selfReport`는 쓰지 않는다
 2. 최근 제외: 전체 이벤트를 `occurrenceAt` 내림차순으로 보며 서로 다른 `soundId` 앞쪽 `recentExclude`개
 3. `sim520`: `sim520Method` 값을 **소리 목록 전체** 기준 최소-최대 정규화. 최댓값 = 최솟값이면 모두 0.5
-4. `pHabit`: 익숙해진 소리와의 최대 코사인, 0 미만은 0. 익숙해진 소리가 없으면 0. `pHabitNormalize`가 참이면 소리 목록 안 쌍별 코사인의 최소-최대로 정규화
+4. `sim(a, b)` = max(0, 내적). `sim(a, a)` = 1. `simNormalize`가 참이면 서로 다른 소리 쌍의 내적을 소리 목록 안 최소-최대로 정규화(자기 자신은 1). `pHabit` = 1 − exp(−H), `habituated` = `pHabit ≥ habituatedAt`
 5. 후보가 비면: 최근 제외를 풀고 `fallback: 'recent_relaxed'`. `excludeHabituated`로 비면 익숙해진 소리를 다시 넣고 `'all_habituated'`
 6. 점수가 같으면 `soundId` 오름차순으로 앞선 것
-7. **결정적**: 같은 입력이면 항상 같은 출력
+7. **결정적**: 같은 입력(`now` 포함)이면 항상 같은 출력
 8. 성능: 소리 50개 × 1024차원, 이벤트 500개에서 200 ms 이내(Q2)
 
 ## C9. 설정 (실험으로 바뀌는 값)
@@ -295,26 +311,26 @@ export const alarmConfig = {
 
 export interface RecommendConfig {
   configVersion: number;
-  window: number; // W
-  threshold: number; // K
+  tauDays: number; // 회복 시간
+  habituatedAt: number; // pHabit 이 값 이상이면 habituated
   badSignalWeight: Record<Outcome, number>;
   w: number; // 0~1, 낯섦 가중치
   recentExclude: number;
   excludeHabituated: boolean;
   sim520Method: Sim520Method;
-  pHabitNormalize: boolean;
+  simNormalize: boolean;
 }
 
 export const recommendConfig: RecommendConfig = {
   configVersion: 1,
-  window: 5, // E4
-  threshold: 2, // E4
-  badSignalWeight: { dismissed: 0, dismissed_late: 0.5, snoozed: 1, timeout: 1 },
+  tauDays: 3, // E4
+  habituatedAt: 0.5, // E4
+  badSignalWeight: { dismissed: 0, dismissed_late: 0.5, snoozed: 1, timeout: 1 }, // E4
   w: 0.5, // E5
   recentExclude: 3,
   excludeHabituated: false,
   sim520Method: 'emb', // E2
-  pHabitNormalize: false, // E1
+  simNormalize: false, // E1
 };
 ```
 
@@ -322,12 +338,15 @@ export const recommendConfig: RecommendConfig = {
 |---|---|---|
 | `okSec` | 10~300 | E4 |
 | `maxSec` | 60~900 | E4 |
-| `window` | 1~20 | E4 |
-| `threshold` | 0 초과, `window` 이하 | E4 |
+| `tauDays` | 0 초과, 30 이하 | E4 |
+| `habituatedAt` | 0 초과, 1 미만 | E4 |
+| `badSignalWeight` | 각각 0~1 | E4 |
 | `w` | 0~1 | E5 |
 | `recentExclude` | 0 이상, 소리 수 미만 | — |
 | `sim520Method` | `emb`·`mel`·`hand` | E2 |
-| `pHabitNormalize` | 참·거짓 | E1 |
+| `simNormalize` | 참·거짓 | E1 |
+
+거리 공간(`model.space`)은 설정이 아니라 `sounds.json`에 들어간다(C2). 바꾸려면 파이프라인을 다시 돌린다.
 
 ## C10. 연결 순서 (A 제공)
 
@@ -342,6 +361,9 @@ export function armAlarm(alarm: Alarm): Promise<void>;
 
 /** 앱 시작 시: reconcile → handleOutcome 반복 → syncPending */
 export function onAppStart(): Promise<void>;
+
+/** 끈 뒤 "익숙했나요?" 답: 그 이벤트에 selfReport를 붙여 appendEvent(덮어쓰기) → syncPending. 추천·예약은 다시 하지 않는다 */
+export function recordSelfReport(eventId: string, answer: SelfReport): void;
 ```
 
 `handleOutcome` 순서와 실패 시 동작:
@@ -351,7 +373,7 @@ export function onAppStart(): Promise<void>;
 | 1 | 그 알람의 대기 중 추천(`pending[alarmId]`)을 꺼내 `pick`으로 | 없으면 `pick: null` |
 | 2 | `AlarmEvent` 조립(`eventId`·`appVersion`·`schemaVersion`) 후 `appendEvent` | — (동기, 실패 없음) |
 | 3 | `syncPending()`을 기다리지 않고 시작 | 무시. 다음 실행 때 다시 |
-| 4 | `recommend({ library, events: getEvents(), config })` | 직전 `soundId` 유지, 오류 기록 |
+| 4 | `recommend({ library, events: getEvents(), config, now })` | 직전 `soundId` 유지, 오류 기록 |
 | 5 | `scheduleOccurrence(alarm, soundId, nextOccurrence(alarm.time, now))` | 화면에 오류 띠. 알람은 `enabled` 유지 |
 | 6 | `pending[alarmId] = 추천 결과`, `alarm.soundId = soundId` | — |
 
@@ -393,7 +415,8 @@ service cloud.firestore {
 | 알람 목록·시각·켜짐 | `useAlarmStore` → `Alarm` |
 | 다음 소리 이름 | `alarm.soundId` → `loadSoundLibrary()`의 `title` |
 | 추천 이유("낯섦 0.80 · 520 유사 0.60") | `pending[alarmId]`의 `Recommendation`(`novelty`·`sim520`) |
-| 익숙해진 소리 표시 | `computeStats(...)`의 `habituated` |
+| 익숙해진 소리 표시 | `computeStats(...)`의 `habituated`·`pHabit` |
+| "익숙했나요?" 질문 | `outcome`이 `dismissed`·`dismissed_late`·`snoozed`(끈 경우)인 이벤트를 만든 직후 한 번. 예·아니오·건너뛰기 → `recordSelfReport`. `timeout`이면 묻지 않는다 |
 | 오류 띠 | `AlarmError.code`별 한국어 문구(A가 정함) |
 
 ## 8. 가짜 데이터 (먼저 시작하는 사람용)
@@ -410,16 +433,20 @@ service cloud.firestore {
 
 (`mel`·`hand`는 `emb`와 같은 값, `top3`는 `[]`, `durationSec` 3, `license` `"자체 제작"`)
 
-이벤트: `square_520`이 서로 다른 날 두 번 `snoozed`, 가장 최근 이벤트도 `square_520`.
+이벤트: `square_520`이 `2026-11-14T07:00:00+09:00`과 `2026-11-15T07:00:00+09:00`에 `snoozed`. `now` = `2026-11-16T07:00:00+09:00`(Δ = 2일, 1일).
 
-설정: `recommendConfig` 기본값에서 `recentExclude: 1`만 바꿈.
+설정: `recommendConfig` 기본값(`tauDays` 3, `habituatedAt` 0.5, `simNormalize` 거짓)에서 `recentExclude: 1`만 바꿈.
+
+이때 `H(c) = sim(c, square_520) × (e^(−2/3) + e^(−1/3))`이고, `pHabit`은 `square_520` 0.7077, `beep_3k` 0.5219, `melody_a`·`nature_a` 0이다(파이썬으로 계산, 소수 4자리).
 
 | 경우 | 기대 결과 | 확인하는 규칙 |
 |---|---|---|
-| 기본 (`w` 0.5) | `nature_a`, score 0.6, pHabit 0, sim520 0.2 | 익숙해짐(2 ≥ 2), 최근 제외, 가중합 |
-| `w: 0` | `beep_3k` (sim520만) | 가중치 끝값 |
+| 기본 (`w` 0.5) | `nature_a`, score 0.6, pHabit 0, sim520 0.2 | 습관화 식, 최근 제외, 가중합 |
+| 기본, `computeStats` | `beep_3k`가 한 번도 안 울렸는데 `habituated: true`(pHabit 0.5219), `square_520`도 `true`(0.7077) | **일반화** |
+| `w: 0` | `beep_3k` (sim520만, score 0.6) | 가중치 끝값 |
 | `w: 1` | `melody_a` (`nature_a`와 낯섦 1로 동점 → ID 순) | 동점 규칙 |
 | 이벤트 없음 | `square_520` (pHabit 모두 0, sim520 최대) | 첫 실행 |
+| `now` = `2026-11-30T07:00:00+09:00`, `recentExclude: 0` | `square_520`, score 0.9943, pHabit 0.0115, `habituated: false` | **회복** |
 | 소리 1개 목록 + 그 소리가 최근 | 그 소리, `fallback: 'recent_relaxed'` | 폴백 |
 
 ## 9. 계약을 바꾸는 절차
@@ -433,7 +460,7 @@ service cloud.firestore {
 
 | 항목 | 무엇에 달렸나 | 정해지면 고칠 곳 |
 |---|---|---|
-| 소리 파일 형식·최대 길이·위치(채널 소리면 네이티브 리소스로 들어가야 할 수 있음) | R1 실기기 확인 | C3 |
+| 소리 파일 형식·최대 길이·위치. 개발 빌드 전제가 확정돼(design.md R1) 채널 소리는 네이티브 리소스(Android `res/raw`, 빌드 설정으로 넣음)일 가능성이 크다. 그러면 `sound-assets.ts`의 `require` 목록 대신 리소스 이름(= 소리 ID, 하이픈 금지 규칙이 여기서 필요)으로 가리킨다 | I-1 알람 라이브러리 선택 | C3, C5 `sound_missing` 판정 |
 | 알림을 밀어 지운 것을 알 수 있나 | R1 | C6 두 번째 줄 |
 | 테스트 실행 도구(jest-expo 등) | B가 추천 모듈 이슈에서 제안 | 5절(design.md) |
 | 익명 인증 상태를 기기에 유지하는 방법(Firebase 13의 RN 지원) [미확인] | A가 이벤트 기록 이슈에서 문서 확인 | C11 |
