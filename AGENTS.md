@@ -62,7 +62,7 @@
 ## 4. 명령
 
 ```bash
-cd app && npx expo start          # 실행 (Expo Go로 QR 스캔)
+cd app && npx expo start          # 실행. 화면은 Expo Go로 확인 가능, 알람 소리는 EAS 개발 빌드에서만 (design.md R1·AD4, PROGRESS D14)
 cd app && npm run check           # 타입 검사(tsc) → 린트(expo lint, 아키텍처 규칙 포함)
 cd app && npx expo install <pkg>  # 패키지 추가 (npm install 금지)
 cd ai && python -m src.features <wav>

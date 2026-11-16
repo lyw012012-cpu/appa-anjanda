@@ -30,10 +30,10 @@
 | D8 | 익명 인증 상태를 기기에 유지하는 방법 | contracts 10절 `[미확인]` | A | I-4 전 | ⬜ |
 | D9 | 보안 설계 (C11 밖의 인증·권한) | AGENTS.md 6절 | 전원 | 제출 전 | ⬜ |
 | D10 | 발표에 쓸 논문 원문 확인 | design.md 7절 `[미확인]` | 누구든 | 11/21 | ⬜ |
-| D11 | PR #4 하네스 엔지니어링 리뷰·병합 | — | 팀원 1명 | 11/17 | 🔄 승인됨 (yj2trigger), 리뷰 반영 후 병합 |
-| D12 | AI 개념 설계: 특징(YAMNet 임베딩 / MFCC), 520 Hz 유사도, 익숙함 판정 방식, Python 버전·패키지 | design.md 3·4절 AD1~AD3, `ai/src/features.py`는 MFCC | 모델 담당 | 11/18 | 🔄 |
+| D11 | PR #4 하네스 엔지니어링 리뷰·병합 | — | 팀원 1명 | 11/17 | ✅ 병합 (2026-11-16) |
+| D12 | AI 개념 설계: 특징(YAMNet 임베딩 / MFCC), 520 Hz 유사도, 익숙함 판정 방식, Python 버전·패키지 | design.md 3·4절 AD1~AD3, `ai/src/features.py`는 MFCC | 모델 담당 | 11/18 | 🔄 PR #5에 제안: 습관화 강도 식, 거리 공간을 세 쌍 비교로 고르기(I-12) |
 | D13 | Firebase 프로젝트 만들기(Firestore·익명 인증·보안 규칙) → `app/.env` 값 팀 공유 | contracts C11 | 앱 개발자 | I-4 전 | ⬜ |
-| D14 | Expo 계정·EAS 프로젝트 연결 (`eas.json`, 개발 빌드). Expo Go로는 직접 넣은 알림 소리가 안 돼서(PR #4 리뷰) I-1부터 필요 | design.md AD4, R1 | 앱 개발자 | I-1 전 | ⬜ yj2trigger 계약 변경 PR에서 I-1 방향 반영 예정 |
+| D14 | Expo 계정·EAS 프로젝트 연결 (`eas.json`, 개발 빌드). Expo Go로는 직접 넣은 알림 소리가 안 돼서(PR #4 리뷰) I-1부터 필요 | design.md AD4, R1 | 앱 개발자 | I-1 전 | ⬜ I-1 방향은 PR #5에서 반영 |
 
 ## 2. 개발할 것
 
@@ -45,12 +45,13 @@
 | I-3 소리 목록 수집 | M1 (11/16) | ai | C | — | ⬜ |
 | I-4 이벤트 기록 | M2 (11/19) | app-alarm | A | I-1 | ⬜ |
 | I-5 소리 목록 로드 | M2 (11/19) | app-recommend | B | I-2 | ⬜ |
-| I-6 익숙함 판정과 설정 파일 | M2 (11/19) | app-recommend | B | — | ⬜ |
+| I-6 습관화 강도와 설정 파일 | M2 (11/19) | app-recommend | B | — | ⬜ |
 | I-7 추천 함수 | M2 (11/19) | app-recommend | B | — | ⬜ |
 | I-8 알람 화면 | M2 (11/19) | app-alarm | A | I-1 | 🔄 템플릿 정리 ✅ (PR #4) |
 | I-9 한 바퀴 연결 | M2 (11/19) | app-alarm | A | I-4·I-7·I-8 | ⬜ |
 | I-10 실데이터 분석 | M3 (11/20) | ai | C | I-4 | ⬜ |
 | I-11 시연·발표 | M4 (11/21) | — | 전원 | I-9 | ⬜ |
+| I-12 세 쌍 비교로 거리 공간 고르기 | M2 (11/19) | ai | C (응답은 전원) | I-3 일부, I-2 후보 벡터 | ⬜ |
 
 "먼저 필요"의 정확한 의존성은 [issues-draft 의존성 그래프](docs/context/issues-draft.md#의존성-그래프).
 
