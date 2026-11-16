@@ -64,7 +64,7 @@ git add .
 git commit -m "feat: 알람 목록 화면 추가"
 git push -u origin feature/alarm-list     # GitHub에서 develop 대상으로 PR 생성
 ```
-- PR은 팀원 1명 이상이 확인한 뒤 병합합니다.
+- PR 리뷰는 필수가 아닙니다. PR을 올리면 팀원에게 링크를 공유하고, 반대 의견이 오면 맞춘 뒤 병합합니다.
 - 오래 걸리는 작업은 중간중간 `git pull origin develop`으로 최신 내용을 합쳐 충돌을 줄이세요.
 - 병합된 기능 브랜치는 삭제합니다.
 
