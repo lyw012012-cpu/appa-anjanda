@@ -8,7 +8,7 @@
 
 **시작**
 1. `git status`, `git log --oneline -5`로 브랜치와 최근 변경을 본다. `develop`이면 `git pull` 후 작업 브랜치부터 만든다.
-2. [PROGRESS.md](PROGRESS.md)에서 검증 상태·막힘·다음 할 일을 확인한다.
+2. `/todo`(또는 [PROGRESS.md](PROGRESS.md))로 밀린 PR·이슈·설계·개발 과제와 막힘을 확인한다.
 3. `cd app && npm run check`로 기준 상태를 확인한다. **이미 실패하면 새 기능보다 그것부터 고치거나, 고칠 수 없으면 PROGRESS.md 막힘에 적는다.**
 4. 이슈 하나만 골라 그 범위 안에서만 고친다. 범위 밖 문제는 고치지 말고 PROGRESS.md에 적는다.
 
