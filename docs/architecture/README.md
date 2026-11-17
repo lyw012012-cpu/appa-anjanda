@@ -7,7 +7,7 @@
 
 ## 계층과 의존 방향 (앱)
 
-`타입·config` ← `lib`(추천·알람·이벤트 저장소·firebase) ← `stores`(Zustand) ← `app`(화면)
+`타입·config` ← `lib`(추천·알람·firebase) ← `stores`(Zustand 저장소 C7, 연결 순서 `orchestrator` C10) ← `app`(화면)
 
 화살표 반대로만 import한다. 화면이 Firebase·알람 같은 부수효과를 직접 부르지 않고 `lib`를 거친다. 바꿀 곳이 어느 계층인지 모르겠으면 이 순서로 판단한다.
 
