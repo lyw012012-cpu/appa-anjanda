@@ -38,14 +38,14 @@
 | 영역 | 기술 | 위치 |
 |---|---|---|
 | 앱 언어 | JavaScript, TypeScript | `app/` |
-| AI·학습 언어 | Python. 오프라인에서 미리 계산. **AI 개념 설계 진행 중** (YAMNet 임베딩은 초안) | `ai/src/` |
+| AI | 오프라인(Python 3.13, TensorFlow·YAMNet): 소리 특징 미리 계산. 앱(TypeScript): 노출 기준 습관화 + 사람별 학습(특징 5개 선형 Thompson sampling 밴딧) + 3단계 계획. design.md AD2, 원안 PR #7 ai-design.md | `ai/src/`, `app/src/lib/recommend.ts` |
 | 프론트엔드 프레임워크 | Expo SDK 58 (React Native 0.88, React 19), 라우팅은 Expo Router (파일 = 화면) | `app/src/app/` |
-| 서버·백엔드 | Firebase (Firestore 보관용, 익명 인증). **서버 연산 없음** | `app/src/lib/firebase.ts`, `app/.env` |
+| 서버·백엔드 | **없음.** 기록은 기기에만(design.md AD6). Firebase는 다음 단계라 `firebase.ts`는 PoC 코드에서 import하지 않는다 | `app/src/lib/firebase.ts`, `app/.env` |
 | 상태 (화면에 영향을 주는 동적 데이터) | Zustand | `app/src/stores/` |
 | UI (화면 구성 요소) | React Native Reusables | `app/src/components/` |
 | 실험 값 | 실험으로 바뀔 값을 한 파일에 모음. 이름과 기본값은 contracts C9 | `app/src/config.ts` |
 
-데이터 흐름: `ai/` 파이프라인 → `app/src/data/sounds.json`(커밋됨, 손으로 수정 금지) → 앱이 벡터 연산으로 추천 → 이벤트는 기기 저장 후 Firestore.
+데이터 흐름: `ai/` 파이프라인 → `app/src/data/sounds.json`(커밋됨, 손으로 수정 금지) → 앱이 기기에 저장한 이벤트로 습관화·사람별 학습을 계산해 3단계 계획 → 단계별 재생 → 상태 질문·재확인 → 이벤트는 기기에만 저장.
 
 ## 3. 오류가 나면 어디를 보나
 

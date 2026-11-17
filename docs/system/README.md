@@ -1,6 +1,6 @@
 # 시스템 제약 (검증 체계)
 
-> 코드가 "끝났다"고 말하기 전에 통과해야 하는 검증. 무엇을 막는지(규칙)는 [architecture/](../architecture/README.md), 테스트 대상의 근거는 [context/design.md 5절](../context/design.md#5-테스트-전략). 플랫폼·OS·일정 한계는 [context/design.md 1.4~1.6절](../context/design.md#14-드라이버).
+> 코드가 "끝났다"고 말하기 전에 통과해야 하는 검증. 무엇을 막는지(규칙)는 [architecture/](../architecture/README.md), 테스트 대상의 근거는 [context/design.md 5절](../context/design.md#5-테스트-전략). 플랫폼·OS·일정 한계는 [context/design.md 1.5~1.8절](../context/design.md#15-드라이버).
 
 상태: ✅ 적용됨 / ⚠️ 있지만 실패 중 / ⬜ 제안·미정
 
@@ -16,8 +16,10 @@
 
 | 대상 | 도구 | 데이터 | 상태 |
 |---|---|---|---|
-| 점수·습관화 강도 함수 (design.md 4.1·4.2, 일반화·회복 사례 포함) | jest-expo | contracts 8절 가짜 데이터와 기대 결과 | ⬜ |
-| 최근 3회 재생한 소리 제외 (Q4) | jest-expo | 가짜 이벤트 | ⬜ |
+| 습관화·3단계 고르기·보상·사후값 (design.md 4.2~4.4) | jest-expo | contracts 8절 가·나·다 가짜 데이터와 기대 결과(`bandit.mode: 'mean'`) | ⬜ |
+| Thompson·음량 흔들림: 같은 `seed`면 같은 계획, 규칙 위반 없음 | jest-expo | contracts 8절 라 | ⬜ |
+| 거슬림 상한·뺀 소리 0회, 1·2단계 최근 3회 제외 (Q4) | jest-expo | 8절 나 | ⬜ |
+| 무작위 대 모델 시뮬레이션 (Q3, E5) | jest-expo 안에서 실행, 그림은 Python | 사람 유형 ①②③⑥⑦ × 14일 | ⬜ |
 | `sounds.json` 모양 (C2), 소리 ID 형식 | 앱: jest-expo, 파이프라인: pytest | 파이프라인 출력 | ⬜ |
 | 특징 추출 (`ai/src`) | pytest | 짧은 예제 wav | ⬜ |
 
@@ -36,6 +38,6 @@ E2E는 하지 않는다. 합성·가짜 데이터 테스트로 확인되는 것�
 | CI | 위 검사를 PR마다 자동 실행 (GitHub Actions) | PR | ⬜ 없음 |
 | PR 공유 | 도구로 못 막는 규칙 (M8 등), 계약 변경 | 병합 전 팀에 링크 공유. 리뷰는 선택, 반대 의견이 오면 맞춘 뒤 병합 | ✅ |
 | 실기기 확인 | 알람 지연(Q1), 계산 시간(Q2), 시연(Q5) | 마일스톤마다, 표로 기록 | ⬜ |
-| 실험 | `[가설]` 값이 맞는지 (E1~E5) | design.md 6절 일정 | ⬜ |
+| 실험 | `[가설]` 값이 맞는지 (E0·E2·E5, 시간이 남으면 E1) | design.md 6절 일정 | ⬜ |
 
 "완료"라고 말하기 위한 조건과 증거 기록 방법은 [AGENTS.md 0절](../../AGENTS.md), 설계·점검 때 볼 항목은 [design-checklist.md](design-checklist.md)에 있다.
