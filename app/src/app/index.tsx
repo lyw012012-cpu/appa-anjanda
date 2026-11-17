@@ -41,7 +41,8 @@ export default function HomeScreen() {
       </Text>
       <View style={styles.row}>
         <Button title="권한 요청" onPress={async () => setPerm(await requestPermissions())} />
-        <Button title="Firebase 확인" onPress={checkFirebase} />      </View>
+        <Button title="Firebase 확인" onPress={checkFirebase} />
+      </View>
       <View style={styles.row}>
         <Button title="1분 뒤 알람" onPress={() => schedule(60)} />
         <Button title="2분 뒤 알람" onPress={() => schedule(120)} />
