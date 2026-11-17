@@ -10,6 +10,7 @@ from pathlib import Path
 
 import librosa
 import numpy as np
+import scipy.signal as ss
 import soundfile as sf
 
 SR_HI = 44100  # 앱 파일, 날카로움
@@ -62,3 +63,77 @@ def two_rates(y: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray]:
     hi = y if sr == SR_HI else librosa.resample(y, orig_sr=sr, target_sr=SR_HI)
     lo = librosa.resample(y, orig_sr=sr, target_sr=SR_LO)
     return hi.astype(np.float32), lo.astype(np.float32)
+
+
+# ── ③ 음향 특징 (고정 기준) ──
+
+PITCH_LO, PITCH_HI = 100.0, 4000.0  # 음높이 눈금
+SHARP_LO, SHARP_HI = 100.0, 8000.0  # 날카로움 눈금
+VOICED_MIN = 0.3  # 소리 나는 프레임 중 기본음이 잡힌 비율이 이보다 작으면 "기본음 없음"
+NEAR_SIGMA = 0.273  # 400·650 Hz에서 가까움 0.5
+HARMONIC_MIN = 0.01  # 배음 에너지가 기본음의 1% 미만이면 "배음 없음"
+
+
+def _log_scale(f: float, lo: float, hi: float) -> float:
+    return float(np.clip((np.log2(f) - np.log2(lo)) / (np.log2(hi) - np.log2(lo)), 0, 1))
+
+
+def _active_frames(y: np.ndarray, sr: int, hop: int) -> np.ndarray:
+    rms = librosa.feature.rms(y=y, hop_length=hop)[0]
+    return rms >= rms.max() * 10 ** (-GATE_DB / 20)
+
+
+def f0_median(y16: np.ndarray) -> float | None:
+    f0, voiced, _ = librosa.pyin(y16, fmin=65, fmax=4200, sr=SR_LO)
+    active = _active_frames(y16, SR_LO, 512)[: len(voiced)]
+    hit = voiced[: len(active)] & active
+    if hit.sum() < VOICED_MIN * max(1, active.sum()):
+        return None
+    return float(np.median(f0[hit]))
+
+
+def pitch_from_f0(f0: float | None) -> float:
+    return 0.5 if f0 is None else _log_scale(f0, PITCH_LO, PITCH_HI)
+
+
+def sharpness(y44: np.ndarray) -> float:
+    cent = librosa.feature.spectral_centroid(y=y44, sr=SR_HI)[0]
+    active = _active_frames(y44, SR_HI, 512)[: len(cent)]
+    return _log_scale(float(np.median(cent[active])), SHARP_LO, SHARP_HI)
+
+
+def roughness(y16: np.ndarray) -> float:
+    env = ss.resample_poly(np.abs(ss.hilbert(y16)), 1, 8)  # 2 kHz
+    band = ss.sosfiltfilt(ss.butter(4, [15, 300], btype="bandpass", fs=2000, output="sos"), env)
+    return float(np.clip(np.sqrt(2) * np.sqrt(np.mean(band**2)) / env.mean(), 0, 1))
+
+
+def _harshness_raw(y44: np.ndarray, y16: np.ndarray) -> float:
+    return 0.5 * sharpness(y44) + 0.5 * roughness(y16)
+
+
+# 기준 소리의 원점수. 다시 계산:
+# python -c "import src.build_sounds as b; from src.reference_sounds import *; [print(round(b._harshness_raw(*b.two_rates(b.normalize(f(), SR, 'x'), SR)), 6)) for f in (chime, buzzer)]"
+RAW0 = 0.379066  # 차임 = 0점
+RAW1 = 1.0  # 버저 = 1점 (날카로움·거칠기 모두 눈금 끝)
+
+
+def harshness(y44: np.ndarray, y16: np.ndarray) -> float:
+    return float(np.clip((_harshness_raw(y44, y16) - RAW0) / (RAW1 - RAW0), 0, 1))
+
+
+def sim520_hand(y16: np.ndarray, f0: float | None) -> float:
+    if f0 is None:
+        return 0.0
+    near = np.exp(-(np.log2(f0 / 520) ** 2) / (2 * NEAR_SIGMA**2))
+    spec = np.abs(np.fft.rfft(y16 * np.hanning(len(y16))))
+    freqs = np.fft.rfftfreq(len(y16), 1 / SR_LO)
+    ks = [k for k in range(1, 10) if k * f0 * 1.03 < SR_LO / 2]
+    amp = np.array([spec[(freqs >= k * f0 * 0.97) & (freqs <= k * f0 * 1.03)].max() for k in ks])
+    ref = np.array([1 / k if k % 2 else 0.0 for k in ks])
+    a, r = amp[1:], ref[1:]
+    if np.sum(a**2) < HARMONIC_MIN * amp[0] ** 2 or not np.any(r):
+        c = 0.0
+    else:
+        c = float(a @ r / (np.linalg.norm(a) * np.linalg.norm(r)))
+    return float(near * (0.5 + 0.5 * c))
