@@ -42,7 +42,7 @@
 | 프론트엔드 프레임워크 | Expo SDK 58 (React Native 0.88, React 19), 라우팅은 Expo Router (파일 = 화면) | `app/src/app/` |
 | 서버·백엔드 | Firebase (Firestore 보관용, 익명 인증). **서버 연산 없음** | `app/src/lib/firebase.ts`, `app/.env` |
 | 상태 (화면에 영향을 주는 동적 데이터) | Zustand | `app/src/stores/` |
-| UI (화면 구성 요소) | React Native Reusables | `app/src/components/` |
+| UI (화면 구성 요소) | React Native Reusables (미설치, D6) | `app/src/components/` |
 | 실험 값 | 실험으로 바뀔 값을 한 파일에 모음. 이름과 기본값은 contracts C9 | `app/src/config.ts` |
 
 데이터 흐름: `ai/` 파이프라인 → `app/src/data/sounds.json`(커밋됨, 손으로 수정 금지) → 앱이 벡터 연산으로 추천 → 이벤트는 기기 저장 후 Firestore.

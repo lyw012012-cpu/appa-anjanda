@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "app",
-    "slug": "app",
+    "name": "아빠 안잔다",
+    "slug": "appa-anjanda",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "app",
+    "scheme": "appaanjanda",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"

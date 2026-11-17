@@ -60,13 +60,13 @@ README와 실제 설정이 다른 곳을 맞추고, 평가 기준 원문을 확�
 - 이게 끝나면: 범위 조정이 필요하면 design.md 1.1 수정
 
 ### 할 일
-- [ ] GitHub 기본 브랜치를 `develop`으로 변경(지금은 `main`)
+- [x] GitHub 기본 브랜치를 `develop`으로 변경
 - [ ] 공모전 평가표 원문을 읽고 [design.md 0절](design.md#0-틀) 평가 기준 칸 채우기
-- [ ] `app.json`의 `name`·`slug`·`scheme`을 템플릿 값 `app`에서 프로젝트 이름으로
-- [ ] README의 "React Native Reusables 우선 사용"을 실제 설치 여부에 맞게 정리
+- [x] `app.json`의 `name`·`slug`·`scheme`을 템플릿 값 `app`에서 프로젝트 이름으로
+- [x] README의 "React Native Reusables 우선 사용"을 실제 설치 여부에 맞게 정리
 
 ### 완료 조건
-- [ ] 새 PR을 열면 대상이 기본으로 `develop`
+- [x] 새 PR을 열면 대상이 기본으로 `develop`
 
 ## I-1 알람 뼈대: 지정한 소리로 울리고 결과 받기 `area:app-alarm` `experiment`
 
