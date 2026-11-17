@@ -4,7 +4,7 @@
 > PR·이슈 상태는 GitHub이 원본이라 여기 적지 않는다. 설계·개발 과제가 끝나거나 막히면 그 작업 PR에서 이 파일도 함께 고친다.
 > 이슈 내용·완료 조건은 [docs/context/issues-draft.md](docs/context/issues-draft.md).
 
-마지막 갱신: 2026-11-16 · 마감 2026-11-22
+마지막 갱신: 2026-11-18 · 마감 2026-11-22
 
 ## 현재 검증 상태
 
@@ -31,7 +31,7 @@
 | D9 | 보안 설계 (C11 밖의 인증·권한) | AGENTS.md 6절 | 전원 | 제출 전 | ⬜ |
 | D10 | 발표에 쓸 논문 원문 확인 | design.md 7절 `[미확인]` | 누구든 | 11/21 | ⬜ |
 | D11 | PR #4 하네스 엔지니어링 리뷰·병합 | — | 팀원 1명 | 11/17 | ✅ 병합 (2026-11-16) |
-| D12 | AI 개념 설계: 특징(YAMNet 임베딩 / MFCC), 520 Hz 유사도, 익숙함 판정 방식, Python 버전·패키지 | design.md 3·4절 AD1~AD3, `ai/src/features.py`는 MFCC | 모델 담당 | 11/18 | 🔄 PR #5에 제안: 습관화 강도 식, 거리 공간을 세 쌍 비교로 고르기(I-12) |
+| D12 | AI 개념 설계: 특징(YAMNet 임베딩 / MFCC), 520 Hz 유사도, 익숙함 판정 방식, Python 버전·패키지 | design.md 3·4절 AD1~AD3, `ai/src/features.py`는 MFCC | 모델 담당 | 11/18 | 🔄 [ai-design.md](docs/context/ai-design.md) 초안: 사용자별 밴딧 학습 + 3단계 소리 순서 + 끈 뒤 재확인. **팀 확인 필요**(AD2를 바꿈). Python 3.13 + TensorFlow 2.21 환경에서 YAMNet 동작 확인(2026-11-17) |
 | D13 | Firebase 프로젝트 만들기(Firestore·익명 인증·보안 규칙) → `app/.env` 값 팀 공유 | contracts C11 | 앱 개발자 | I-4 전 | ⬜ |
 | D14 | Expo 계정·EAS 프로젝트 연결 (`eas.json`, 개발 빌드). Expo Go로는 직접 넣은 알림 소리가 안 돼서(PR #4 리뷰) I-1부터 필요 | design.md AD4, R1 | 앱 개발자 | I-1 전 | ⬜ I-1 방향은 PR #5에서 반영 |
 
