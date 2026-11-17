@@ -28,6 +28,7 @@ TARGET_RMS_DB = -20.0
 PEAK_DB = -1.0
 MAX_SEC = 30.0
 FADE_SEC = 0.05
+MIN_SEC = 0.1  # 앞뒤 무음을 자른 뒤 이보다 짧으면 거부
 GATE_DB = 40.0  # 최대 프레임보다 이만큼 넘게 작은 프레임은 "소리 없음"
 
 
@@ -57,6 +58,8 @@ def normalize(y: np.ndarray, sr: int, sound_id: str) -> np.ndarray:
     # 앞뒤 무음만 자른다(표본 단위). 삑-쉼 사이 쉼은 그대로 둔다
     loud = np.flatnonzero(np.abs(y) >= np.abs(y).max() * 10 ** (-GATE_DB / 20))
     y = y[loud[0] : loud[-1] + 1]
+    if len(y) < MIN_SEC * sr:
+        raise ValueError(f"{sound_id}: 소리가 너무 짧음({len(y) / sr:.3f}초, 앞뒤 −40 dB 무음을 자른 뒤 {MIN_SEC}초 미만)")
     if len(y) > MAX_SEC * sr:
         y = y[: int(MAX_SEC * sr)].copy()
         fade = int(FADE_SEC * sr)
@@ -138,7 +141,12 @@ def sim520_hand(y16: np.ndarray, f0: float | None) -> float:
     spec = np.abs(np.fft.rfft(y16 * np.hanning(len(y16))))
     freqs = np.fft.rfftfreq(len(y16), 1 / SR_LO)
     ks = [k for k in range(1, 10) if k * f0 * 1.03 < SR_LO / 2]
-    amp = np.array([spec[(freqs >= k * f0 * 0.97) & (freqs <= k * f0 * 1.03)].max() for k in ks])
+    def peak(f: float) -> float:
+        band = spec[(freqs >= f * 0.97) & (freqs <= f * 1.03)]
+        # 짧은 소리는 ±3% 대역이 주파수 칸 하나보다 좁을 수 있어 가장 가까운 칸을 쓴다
+        return float(band.max()) if band.size else float(spec[np.argmin(np.abs(freqs - f))])
+
+    amp = np.array([peak(k * f0) for k in ks])
     ref = np.array([1 / k if k % 2 else 0.0 for k in ks])
     a, r = amp[1:], ref[1:]
     if np.sum(a**2) < HARMONIC_MIN * amp[0] ** 2 or not np.any(r):
@@ -210,9 +218,20 @@ ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 EMB_DIM = 1024
 
 
+CSV_COLUMNS = ("id", "file", "title", "group", "group_rep", "license", "source_url")
+
+
 def read_csv(csv_path: Path) -> list[dict]:
-    with open(csv_path, encoding="utf-8-sig", newline="") as f:
-        rows = list(csv.DictReader(f))
+    try:
+        with open(csv_path, encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            columns = reader.fieldnames or []
+    except UnicodeDecodeError as e:
+        raise ValueError(f"{csv_path.name}: UTF-8로 저장해야 함(엑셀은 'CSV UTF-8'로 저장)") from e
+    missing = [c for c in CSV_COLUMNS if c not in columns]
+    if missing:
+        raise ValueError(f"{csv_path.name}: 열 없음 {', '.join(missing)}")
     for r in rows:
         if not (r.get("license") or "").strip():
             raise ValueError(f"라이선스 빈칸: {r.get('id')}")
@@ -304,7 +323,11 @@ def validate_library(lib: dict, synthetic: bool) -> None:
 def build(items: list[tuple[dict, np.ndarray, int]], synthetic: bool) -> tuple[dict, dict[str, np.ndarray]]:
     sounds, waves = [], {}
     for row, y, sr in sorted(items, key=lambda it: it[0]["id"]):
-        sound, y44 = analyze(row, y, sr)
+        try:
+            sound, y44 = analyze(row, y, sr)
+        except Exception as e:  # 어느 소리에서 났는지 붙여 다시 던진다
+            msg = str(e)
+            raise ValueError(msg if msg.startswith(f"{row['id']}:") else f"{row['id']}: {msg}") from e
         sounds.append(sound)
         waves[sound["id"]] = y44
     lib = {
@@ -435,7 +458,12 @@ def main(argv: list[str] | None = None) -> int:
             items, root = synthetic_rows(), AI_DIR / "out"
         else:
             sounds_dir = args.csv.parent / "sounds"
-            items = [(r, *load_audio(sounds_dir / r["file"])) for r in read_csv(args.csv)]
+            items = []
+            for r in read_csv(args.csv):
+                try:
+                    items.append((r, *load_audio(sounds_dir / r["file"])))
+                except Exception as e:
+                    raise ValueError(f"{r['id']}: 읽기 실패({r['file']}): {e}") from e
             root = args.app
         lib, waves = build(items, args.synthetic)
         write_outputs(lib, waves, root)

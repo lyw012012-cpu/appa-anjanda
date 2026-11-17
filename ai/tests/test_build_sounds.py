@@ -272,3 +272,43 @@ def test_report_files(tmp_path, fake_yamnet):
         assert (tmp_path / name).exists()
     md = (tmp_path / "report.md").read_text(encoding="utf-8")
     assert "2단계 후보" in md and "| 순위 | emb | mel | hand |" in md
+
+
+# ── 최종 검토 수정: 실패하면 어느 소리인지 적는다 ──
+
+import scipy.signal as _ss  # noqa: E402
+
+
+def test_sim520_hand_short_low_pitch():
+    t = np.arange(int(0.15 * 16000)) / 16000
+    y16 = _ss.sawtooth(2 * np.pi * 70 * t).astype(np.float32)
+    assert 0 <= bs.sim520_hand(y16, 70.0) <= 1
+
+
+def test_normalize_too_short_raises():
+    y = np.concatenate([np.ones(10), 10 ** (-50 / 20) * sine(440, sec=1.0)]).astype(np.float32)
+    with pytest.raises(ValueError, match="click_x"):
+        normalize(y, SR, "click_x")
+
+
+def test_read_csv_cp949(tmp_path):
+    p = tmp_path / "sounds.csv"
+    p.write_bytes((HEADER + "bell_01,bell.wav,종소리,bell,1,CC0,-\n").encode("cp949"))
+    with pytest.raises(ValueError, match="UTF-8"):
+        bs.read_csv(p)
+
+
+def test_read_csv_missing_column(tmp_path):
+    p = tmp_path / "sounds.csv"
+    p.write_text("id,file,title,group,license,source_url\nbell_01,bell.wav,종,bell,CC0,-\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="group_rep"):
+        bs.read_csv(p)
+
+
+def test_build_error_names_id(fake_yamnet, monkeypatch):
+    def boom(_):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(bs, "f0_median", boom)
+    with pytest.raises(ValueError, match="a: boom"):
+        bs.build([(row("a"), sine(440), SR)], synthetic=True)
