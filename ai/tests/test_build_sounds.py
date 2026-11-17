@@ -257,3 +257,18 @@ def test_mp3_size(tmp_path):
     bs.write_outputs(lib_of(s), {"s": sine(440, sec=30)}, tmp_path)
     size = (tmp_path / "assets" / "sounds" / "s.mp3").stat().st_size
     assert abs(size - 240_000) <= 24_000
+
+
+# ── ⑥ 보고 ──
+
+
+def test_report_files(tmp_path, fake_yamnet):
+    items = [(row("a"), square(520), SR), (row("b", rep="0"), sine(700), SR),
+             (row("c", "melody", "1"), chime(), SR), (row("d", "other", "1"), white_noise(), SR)]
+    lib, _ = bs.build(items, synthetic=True)
+    e2 = {"square_520": {"emb": 1.0, "mel": 1.0, "hand": 1.0}, "white_noise": {"emb": 0.2, "mel": 0.1, "hand": 0.0}}
+    bs.write_report(lib, tmp_path, e2)
+    for name in ("cos_hist.png", "pitch_vs_hand.png", "report.md"):
+        assert (tmp_path / name).exists()
+    md = (tmp_path / "report.md").read_text(encoding="utf-8")
+    assert "2단계 후보" in md and "| 순위 | emb | mel | hand |" in md

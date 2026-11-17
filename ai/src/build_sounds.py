@@ -352,6 +352,78 @@ def write_outputs(lib: dict, waves: dict[str, np.ndarray], root: Path) -> None:
     )
 
 
+# ── ⑥ 보고 (ai/reports/) ──
+
+CONTRAST_MAX_SIM = 0.5  # C9 contrastMaxSim 기본값. 2단계 후보 수 계산용
+
+
+def e2_scores() -> dict[str, dict[str, float]]:
+    from src.reference_sounds import E2_SOUNDS, SR
+
+    out = {}
+    for sid, make in E2_SOUNDS.items():
+        _, y16 = two_rates(normalize(make(), SR, sid), SR)
+        out[sid] = {"emb": sim520_emb(yamnet_embed(y16)[0]), "mel": sim520_mel(y16), "hand": sim520_hand(y16, f0_median(y16))}
+    return out
+
+
+def write_report(lib: dict, report_dir: Path, e2: dict[str, dict[str, float]]) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    report_dir.mkdir(parents=True, exist_ok=True)
+    sounds = lib["sounds"]
+    ids = [s["id"] for s in sounds]
+    emb = np.array([s["embedding"] for s in sounds])
+    dots = np.clip(emb @ emb.T, 0, None)
+    iu = np.triu_indices(len(ids), 1)
+    pairs = dots[iu]
+    zeroed = np.clip((dots - SIM_ZERO) / (1 - SIM_ZERO), 0, 1)
+    candidates = {sid: int(sum(zeroed[i, j] <= CONTRAST_MAX_SIM for j in range(len(ids)) if j != i)) for i, sid in enumerate(ids)}
+    pitch = np.array([s["pitch"] for s in sounds])
+    hand = np.array([s["sim520"]["hand"] for s in sounds])
+    r = float(np.corrcoef(pitch, hand)[0, 1]) if len(ids) > 2 and pitch.std() > 0 and hand.std() > 0 else float("nan")
+
+    fig, ax = plt.subplots(figsize=(6, 3.5))
+    ax.hist(pairs, bins=20, range=(0, 1))
+    ax.axvline(SIM_ZERO, color="red", label=f"zero {SIM_ZERO}")
+    ax.set_xlabel("max(0, dot) of distinct pairs")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(report_dir / "cos_hist.png", dpi=100)
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(5, 4))
+    ax.scatter(pitch, hand)
+    for sid, x, y in zip(ids, pitch, hand):
+        ax.annotate(sid, (x, y), fontsize=7)
+    ax.set_xlabel("pitch")
+    ax.set_ylabel("sim520.hand")
+    fig.tight_layout()
+    fig.savefig(report_dir / "pitch_vs_hand.png", dpi=100)
+    plt.close(fig)
+
+    md = ["# 파이프라인 보고서", "", f"생성 {lib['generatedAt']} · 소리 {len(ids)}개 · 영점 {SIM_ZERO}", ""]
+    if not np.isnan(r) and abs(r) > 0.7:
+        md += [f"> ⚠️ R10: pitch와 sim520.hand의 상관 r = {r:.2f} (|r| > 0.7). 팀에 알리고 특징 하나를 뺄지 I-13에서 판단", ""]
+    md += ["## 유사도", "", f"- 서로 다른 쌍의 max(0, 내적) 중앙값: {np.median(pairs):.4f}" if len(pairs) else "- 쌍 없음",
+           "- 분포: ![cos_hist](cos_hist.png)", "", "### 2단계 후보 수", "",
+           f"영점 조정한 유사도가 {CONTRAST_MAX_SIM} 이하인 다른 소리의 수. 0이면 그 소리 다음에 대비 단계가 조건을 푼다.", "",
+           "| 소리 | 2단계 후보 |", "|---|---|", *[f"| {k} | {v} |" for k, v in candidates.items()], "",
+           "## pitch–sim520.hand (R10)", "", f"- 상관 r = {r:.2f}", "- 산점도: ![pitch_vs_hand](pitch_vs_hand.png)", "",
+           "## E2: 520 Hz 닮음 방식별 순위", "", "| 순위 | emb | mel | hand |", "|---|---|---|---|"]
+    ranked = {m: sorted(e2, key=lambda k: -e2[k][m]) for m in ("emb", "mel", "hand")}
+    for i in range(len(e2)):
+        md.append(f"| {i + 1} | " + " | ".join(f"{ranked[m][i]} ({e2[ranked[m][i]][m]:.2f})" for m in ("emb", "mel", "hand")) + " |")
+    md += ["", "## 소리별 특징", "", "| 소리 | 계열 | pitch | harshness | hand | emb | mel | top3 |", "|---|---|---|---|---|---|---|---|"]
+    for s in sounds:
+        md.append(f"| {s['id']} | {s['group']} | {s['pitch']} | {s['harshness']} | {s['sim520']['hand']} | "
+                  f"{s['sim520']['emb']} | {s['sim520']['mel']} | {', '.join(s['top3'])} |")
+    (report_dir / "report.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="sounds.csv + 원본 → sounds.json · mp3 · sound-assets.ts")
     p.add_argument("--csv", type=Path, default=AI_DIR / "data" / "sounds.csv")
@@ -367,6 +439,7 @@ def main(argv: list[str] | None = None) -> int:
             root = args.app
         lib, waves = build(items, args.synthetic)
         write_outputs(lib, waves, root)
+        write_report(lib, AI_DIR / "reports", e2_scores())
     except ValueError as e:
         print(f"실패 — {e}", file=sys.stderr)
         return 1
