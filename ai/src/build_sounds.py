@@ -6,7 +6,13 @@
 설계: docs/context/pipeline-design.md. 계약: docs/context/contracts.md C1~C4.
 """
 
+import argparse
 import csv
+import io
+import json
+import re
+import sys
+from datetime import datetime
 import functools
 import os
 from pathlib import Path
@@ -194,3 +200,179 @@ def mel_profile(y16: np.ndarray) -> np.ndarray:
 
 def sim520_mel(y16: np.ndarray) -> float:
     return _cos(mel_profile(y16), mel_profile(_ref520_y16()))
+
+
+# ── ⑤ 목록 만들기·검사 (C1·C2) ──
+
+SIM_ZERO = 0.58  # 유사도 영점. PR #7 6.2 합성 소리 36쌍의 중앙값. I-3 뒤 한 번만 갱신(설계 3절 ⑤)
+GROUPS = {"bell", "melody", "beep", "nature", "voice", "other"}
+ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+EMB_DIM = 1024
+
+
+def read_csv(csv_path: Path) -> list[dict]:
+    with open(csv_path, encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.DictReader(f))
+    for r in rows:
+        if not (r.get("license") or "").strip():
+            raise ValueError(f"라이선스 빈칸: {r.get('id')}")
+    return rows
+
+
+def synthetic_rows() -> list[tuple[dict, np.ndarray, int]]:
+    from src.reference_sounds import E2_SOUNDS, SR, chime
+
+    sounds = {**E2_SOUNDS, "chime": chime}
+    groups = {"chime": "melody", "white_noise": "other"}
+    seen: set[str] = set()
+    items = []
+    for sid, make in sounds.items():
+        group = groups.get(sid, "beep")
+        row = {"id": sid, "file": f"{sid}.wav", "title": sid, "group": group,
+               "group_rep": "0" if group in seen else "1", "license": "자체 제작", "source_url": "-"}
+        seen.add(group)
+        items.append((row, make(), SR))
+    return items
+
+
+def analyze(row: dict, y: np.ndarray, sr: int) -> tuple[dict, np.ndarray]:
+    sid = row["id"]
+    y44, y16 = two_rates(normalize(y, sr, sid), sr)
+    f0 = f0_median(y16)
+    emb, top3 = yamnet_embed(y16)
+    r4 = lambda v: round(float(v), 4)  # noqa: E731  0~1 점수는 소수 4자리(contracts 1절)
+    sound = {
+        "id": sid,
+        "file": f"{sid}.mp3",
+        "title": row["title"],
+        "group": row["group"],
+        "groupRep": row["group_rep"].strip() == "1",
+        "license": row["license"].strip(),
+        "sourceUrl": row["source_url"].strip(),
+        "durationSec": round(len(y44) / SR_HI, 3),
+        "embedding": [round(float(v), 5) for v in emb],
+        "sim520": {"emb": r4(sim520_emb(emb)), "mel": r4(sim520_mel(y16)), "hand": r4(sim520_hand(y16, f0))},
+        "pitch": r4(pitch_from_f0(f0)),
+        "harshness": r4(harshness(y44, y16)),
+        "top3": top3,
+    }
+    return sound, y44
+
+
+def validate_library(lib: dict, synthetic: bool) -> None:
+    def fail(rule: str, sid: str) -> None:
+        raise ValueError(f"{rule}: {sid}")
+
+    sounds = lib["sounds"]
+    if not sounds:
+        fail("소리 1개 이상", "-")
+    if not 0 <= lib["model"]["simMedian"] < 1:
+        fail("simMedian 범위", "-")
+    ids = [s["id"] for s in sounds]
+    by_group: dict[str, list[dict]] = {}
+    for s in sounds:
+        sid = s["id"]
+        if not ID_RE.match(sid):
+            fail("소리 ID 형식", sid)
+        if ids.count(sid) > 1:
+            fail("소리 ID 중복", sid)
+        if s["group"] not in GROUPS:
+            fail("계열 이름", sid)
+        if len(s["embedding"]) != lib["model"]["embeddingDim"]:
+            fail("임베딩 길이", sid)
+        if abs(np.linalg.norm(s["embedding"]) - 1) > 1e-3:
+            fail("임베딩 L2 노름", sid)
+        for v in (*s["sim520"].values(), s["pitch"], s["harshness"]):
+            if not 0 <= v <= 1:
+                fail("0~1 범위", sid)
+        if s["durationSec"] <= 0:
+            fail("길이", sid)
+        if s["file"] != f"{sid}.mp3":
+            fail("파일 이름", sid)
+        if not s["license"]:
+            fail("라이선스", sid)
+        by_group.setdefault(s["group"], []).append(s)
+    if ids != sorted(ids):
+        fail("id 오름차순", ids[0])
+    for g, members in by_group.items():
+        if sum(m["groupRep"] for m in members) != 1:
+            fail("계열 대표 1개", g)
+        if not synthetic and len(members) < 3:
+            fail("계열마다 3개 이상", g)
+
+
+def build(items: list[tuple[dict, np.ndarray, int]], synthetic: bool) -> tuple[dict, dict[str, np.ndarray]]:
+    sounds, waves = [], {}
+    for row, y, sr in sorted(items, key=lambda it: it[0]["id"]):
+        sound, y44 = analyze(row, y, sr)
+        sounds.append(sound)
+        waves[sound["id"]] = y44
+    lib = {
+        "schemaVersion": 2,
+        "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "model": {"space": "yamnet", "embeddingDim": EMB_DIM, "simMedian": SIM_ZERO},
+        "sounds": sounds,
+    }
+    validate_library(lib, synthetic)
+    return lib, waves
+
+
+# ── ⑦ 쓰기 (C2·C3) ──
+
+MP3_LEVEL = 0.889  # soundfile compression_level → 모노 44.1 kHz에서 약 64 kbps 고정
+MAX_TOTAL_BYTES = 10 * 1024 * 1024
+
+
+def _mp3_bytes(y44: np.ndarray) -> bytes:
+    buf = io.BytesIO()
+    sf.write(buf, y44, SR_HI, format="MP3", bitrate_mode="CONSTANT", compression_level=MP3_LEVEL)
+    return buf.getvalue()
+
+
+def write_outputs(lib: dict, waves: dict[str, np.ndarray], root: Path) -> None:
+    mp3 = {sid: _mp3_bytes(y) for sid, y in waves.items()}
+    total = sum(map(len, mp3.values()))
+    if total > MAX_TOTAL_BYTES:
+        raise ValueError(f"소리 파일 전체 10 MB 초과: {total / 1e6:.1f} MB")
+    data, sounds_dir = root / "src" / "data", root / "assets" / "sounds"
+    data.mkdir(parents=True, exist_ok=True)
+    sounds_dir.mkdir(parents=True, exist_ok=True)
+    for old in sounds_dir.glob("*.mp3"):  # 목록에서 빠진 소리의 파일은 지운다(파이프라인 출력 폴더)
+        if old.stem not in mp3:
+            old.unlink()
+    for sid, b in mp3.items():
+        (sounds_dir / f"{sid}.mp3").write_bytes(b)
+    (data / "sounds.json").write_text(json.dumps(lib, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    lines = [f"  {s['id']}: require('../../assets/sounds/{s['id']}.mp3')," for s in lib["sounds"]]
+    (data / "sound-assets.ts").write_text(
+        "// 생성 파일: ai/src/build_sounds.py가 만든다. 손으로 고치지 않는다(M5).\n"
+        "import type { SoundId } from '@/types/contracts';\n\n"
+        "export const soundAssets: Record<SoundId, number> = {\n" + "\n".join(lines) + "\n};\n",
+        encoding="utf-8",
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(description="sounds.csv + 원본 → sounds.json · mp3 · sound-assets.ts")
+    p.add_argument("--csv", type=Path, default=AI_DIR / "data" / "sounds.csv")
+    p.add_argument("--app", type=Path, default=AI_DIR.parent / "app")
+    p.add_argument("--synthetic", action="store_true", help="합성 소리로 실행. 출력은 ai/out/")
+    args = p.parse_args(argv)
+    try:
+        if args.synthetic:
+            items, root = synthetic_rows(), AI_DIR / "out"
+        else:
+            sounds_dir = args.csv.parent / "sounds"
+            items = [(r, *load_audio(sounds_dir / r["file"])) for r in read_csv(args.csv)]
+            root = args.app
+        lib, waves = build(items, args.synthetic)
+        write_outputs(lib, waves, root)
+    except ValueError as e:
+        print(f"실패 — {e}", file=sys.stderr)
+        return 1
+    print(f"소리 {len(lib['sounds'])}개 → {root}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
