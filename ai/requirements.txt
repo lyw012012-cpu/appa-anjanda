@@ -3,6 +3,9 @@ scipy
 librosa
 soundfile
 scikit-learn
-torch
 matplotlib
 jupyter
+tensorflow==2.21.*
+tensorflow-hub==0.16.1
+setuptools<81
+pytest
