@@ -1,12 +1,8 @@
 import { create } from 'zustand';
 
-// 예시 스토어: 화면에 영향을 주는 동적 데이터는 Zustand 스토어로 관리합니다.
-export type Alarm = {
-  id: string;
-  time: string; // "HH:mm"
-  enabled: boolean;
-  soundId?: string;
-};
+import type { Alarm } from '@/types/contracts';
+
+// 알람 목록. Alarm 타입은 contracts C4(types/contracts.ts). 저장(persist, 'appa.alarms.v1')은 I-4.
 
 type AlarmState = {
   alarms: Alarm[];

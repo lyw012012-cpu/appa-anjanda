@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-16T07:00:00+09:00",
+  "model": { "space": "yamnet", "embeddingDim": 4, "simMedian": 0 },
+  "sounds": [
+    {
+      "id": "beep_3k",
+      "file": "beep_3k.mp3",
+      "title": "높은 삑",
+      "group": "beep",
+      "groupRep": false,
+      "license": "자체 제작",
+      "sourceUrl": "-",
+      "durationSec": 3,
+      "embedding": [0.6, 0.8, 0, 0],
+      "sim520": { "emb": 0.6, "mel": 0.6, "hand": 0.6 },
+      "pitch": 1.0,
+      "harshness": 0.8,
+      "top3": []
+    },
+    {
+      "id": "melody_a",
+      "file": "melody_a.mp3",
+      "title": "멜로디",
+      "group": "melody",
+      "groupRep": true,
+      "license": "자체 제작",
+      "sourceUrl": "-",
+      "durationSec": 3,
+      "embedding": [0, 0, 1, 0],
+      "sim520": { "emb": 0.0, "mel": 0.0, "hand": 0.0 },
+      "pitch": 0.4,
+      "harshness": 0.1,
+      "top3": []
+    },
+    {
+      "id": "nature_a",
+      "file": "nature_a.mp3",
+      "title": "자연 소리",
+      "group": "nature",
+      "groupRep": true,
+      "license": "자체 제작",
+      "sourceUrl": "-",
+      "durationSec": 3,
+      "embedding": [0, 0, 0.6, 0.8],
+      "sim520": { "emb": 0.2, "mel": 0.2, "hand": 0.2 },
+      "pitch": 0.6,
+      "harshness": 0.1,
+      "top3": []
+    },
+    {
+      "id": "square_520",
+      "file": "square_520.mp3",
+      "title": "520 Hz 사각파",
+      "group": "beep",
+      "groupRep": true,
+      "license": "자체 제작",
+      "sourceUrl": "-",
+      "durationSec": 3,
+      "embedding": [1, 0, 0, 0],
+      "sim520": { "emb": 1.0, "mel": 1.0, "hand": 1.0 },
+      "pitch": 0.0,
+      "harshness": 0.5,
+      "top3": []
+    }
+  ]
+}
