@@ -8,7 +8,7 @@
 
 | 담당 (제안) | 영역 | 제공하는 계약 | 쓰는 계약 |
 |---|---|---|---|
-| **A** 앱: 알람·화면 | 예약·단계별 재생·결과 판정, 상태 질문·재확인, 이벤트·사용자 설정 저장, 화면, 연결 | C5 알람 모듈, C6 결과 판정, C7 저장소, C10 연결 순서, C12 화면 상태 | C2, C3, C8, C9 |
+| **A** 앱: 알람·화면 | 예약·단계별 재생·결과 판정, 상태 질문·재확인, 이벤트·사용자 설정 저장, Firestore, 화면, 연결 | C5 알람 모듈, C6 결과 판정, C7 저장소, C10 연결 순서, C11 Firestore, C12 화면 상태 | C2, C3, C8, C9 |
 | **B** 앱: 추천 | 소리 목록 로드, 습관화, 보상, 사람별 학습(밴딧), 3단계 순서, 시뮬레이션 | C2 로더 검사, C8 추천 모듈, C9 추천 설정 | C4, C7 |
 | **C** AI | 소리 수집, 파이프라인(음향 특징·거슬림), 문제 근거 설문 | C1 원본 입력, C2 sounds.json, C3 소리 파일·자산 목록 | — |
 | 공통 | — | C4 공유 타입, 1절 공통 규칙 | — |
@@ -27,6 +27,7 @@ flowchart LR
   subgraph A[알람 담당]
     A5[C5 알람 모듈<br/>단계별 재생 · 재확인] -->|C6 OccurrenceRecord| A10[C10 연결]
     A10 -->|C7 appendEvent| A7[C7 저장소<br/>이벤트 · 사용자 설정]
+    A7 -->|C11 쓰기만| FS[(Firestore)]
     A10 --> A12[C12 화면 상태]
   end
   A7 -->|AlarmEvent 목록 · UserSettings| B8
@@ -266,6 +267,7 @@ export class AlarmError extends Error {
 - **스누즈**: 지금 재생을 멈추고 `snoozeMin` 뒤 **2단계부터** 다시. `snoozeCount`가 `maxSnooze`를 넘으면 다음 울림은 3단계부터
 - `scheduleOccurrence` 실패는 `AlarmError`로 던진다. `soundAssets`에 없는 `soundId`면 `sound_missing`
 - 같은 occurrence에 대해 `onOutcome`은 **정확히 한 번**. `reconcile`이 돌려준 것과 `onOutcome`으로 보낸 것이 겹치면 안 된다
+- **구현(PR #10)**: `react-native-alarm-scheduler`로 예약하고, 울리면 잠금 화면 위 앱 화면이 expo-audio로 단계를 재생한다. 그동안 라이브러리 기본 알람음은 hold(30초, 20초마다 연장)로 끄고, 모든 단계가 끝나면 hold를 풀어 **안전장치**로 울린다. 앱이 죽어 연장이 끊겨도 기본 알람음이 돌아온다. 재확인은 라이브러리의 followUp 알람이다. 지금 프로토타입 함수 모양은 위와 다르고 I-4·I-9에서 맞춘다
 - **I-1에서 단계별 소리 바꾸기가 안 되면**([ai-design.md](https://github.com/lyw012012-cpu/appa-anjanda/pull/7) 8절 대안): `plan.stages[0]`만 울리고(끌 때까지 반복), 2·3단계는 재생하지 않는다. 기록 모양은 같다(`played`에 1단계만). 이 경우 C8은 그대로 두고 화면에 "단계 재생 꺼짐"을 표시한다
 
 ## C6. 결과 판정 규칙 (A가 C5 안에서 적용)
@@ -284,7 +286,7 @@ export class AlarmError extends Error {
 
 ## C7. 저장소 (A 제공, B·C10이 사용)
 
-- 위치: `app/src/stores/event-store.ts`, `app/src/stores/settings-store.ts` (Zustand + persist). 기기에만 저장([design.md AD6](design.md#3-아키텍처-결정))
+- 위치: `app/src/stores/event-store.ts`, `app/src/stores/settings-store.ts` (Zustand + persist). 기기에 먼저 저장하고 이벤트만 Firestore에 올린다([design.md AD6](design.md#3-아키텍처-결정))
 
 ```ts
 /** 같은 eventId면 덮어쓴다(멱등). 상태 질문·재확인 결과를 나중에 붙일 때도 이걸로 */
@@ -293,14 +295,17 @@ export function appendEvent(e: AlarmEvent): void;
 /** occurrenceAt 오름차순. 반환 배열을 고치지 않는다 */
 export function getEvents(): readonly AlarmEvent[];
 
-/** 시연용 초기화(개발 메뉴) */
+/** 아직 안 올린 이벤트를 Firestore에 올린다(C11). 실패해도 던지지 않는다 */
+export function syncPending(): Promise<{ synced: number; failed: number }>;
+
+/** 시연용 초기화(개발 메뉴). 기기 기록만 지운다 */
 export function clearEvents(): void;
 
 export function getSettings(): UserSettings;
 export function updateSettings(patch: Partial<UserSettings>): void;
 ```
 
-- 로컬 저장소 키: `appa.events.v2`, `appa.settings.v1`. 설정 기본값: `{ chosen: [], excluded: [], startVolume: 0.5, gentleMode: false }`
+- 로컬 저장소 키: `appa.events.v2`, `appa.settings.v1`. 업로드 여부는 저장소 안 `syncedIds`로만 관리하고 `AlarmEvent`에 넣지 않는다. 이미 있는 `eventId`를 덮어쓰면(상태 질문·재확인 결과를 붙일 때) 그 ID를 `syncedIds`에서 빼서 다시 올린다. 설정 기본값: `{ chosen: [], excluded: [], startVolume: 0.5, gentleMode: false }`
 - 로컬 저장 기술: Zustand `persist` + `@react-native-async-storage/async-storage` [권장]. A가 뼈대 단계에서 `npx expo install`로 추가
 
 ## C8. 추천 모듈 (B 제공, C10·화면이 사용)
@@ -456,7 +461,7 @@ export function handleRecheck(eventId: string, result: 'responded' | 'no_respons
 /** 알람 추가·켜기·시각 변경·설정 변경 시: 계획 → 예약 */
 export function armAlarm(alarm: Alarm): Promise<void>;
 
-/** 앱 시작 시: reconcile → handleOutcome 반복 */
+/** 앱 시작 시: reconcile → handleOutcome 반복 → syncPending */
 export function onAppStart(): Promise<void>;
 ```
 
@@ -465,7 +470,7 @@ export function onAppStart(): Promise<void>;
 | 단계 | 할 일 | 실패하면 |
 |---|---|---|
 | 1 | 그 알람의 대기 중 계획(`pending[alarmId]`)을 꺼내 `plan`으로. 각 `PlayedStage.features`를 계획의 같은 단계에서 복사 | 없으면 `plan: null`, `features: null` |
-| 2 | `AlarmEvent` 조립(`state: null`, `recheck: 'none'`) 후 `appendEvent` | — (동기, 실패 없음) |
+| 2 | `AlarmEvent` 조립(`state: null`, `recheck: 'none'`) 후 `appendEvent`, `syncPending()`을 기다리지 않고 시작 | 업로드 실패는 무시, 다음 실행 때 다시 |
 | 3 | `next = nextOccurrence(alarm.time, now)`, `planAlarm({ ..., settings: getSettings(), seed: \`${alarm.id}__${next}\` })` | 직전 계획 유지, 오류 기록 |
 | 4 | `scheduleOccurrence(alarm, plan, next)` | 화면에 오류 띠. 알람은 `enabled` 유지 |
 | 5 | `pending[alarmId] = plan` | — |
@@ -475,13 +480,34 @@ export function onAppStart(): Promise<void>;
 - 대기 중 계획 저장소 키: `appa.pending.v2`. 알람 저장소 키: `appa.alarms.v1`
 - 꺼진 알람(`enabled: false`)은 3~5를 하지 않는다
 
-## C11. Firestore (다음 단계, PoC에서 쓰지 않음)
+## C11. Firestore
 
-PoC는 기록을 기기에만 둔다([design.md AD6](design.md#3-아키텍처-결정)). 다음 단계에서 보관이 필요하면 이 절을 다시 연다. 그때의 원칙만 남긴다.
+구현: `app/src/lib/firebase.ts`(`ensureUid`, `uploadEvent`), 보안 규칙 `firestore.rules`(PR #10).
 
-- 경로 `users/{uid}/events/{eventId}`, 익명 인증, 자기 `uid` 경로만 읽고 쓰는 보안 규칙
-- 앱은 Firestore를 읽지 않는다(추천은 로컬 이벤트로, M3 ESLint 규칙 유지)
-- `app/src/lib/firebase.ts`는 남겨 두되 PoC 코드에서 import하지 않는다
+| 항목 | 내용 |
+|---|---|
+| 인증 | Firebase 익명 인증. 로그인 상태는 `getReactNativePersistence(AsyncStorage)`로 남아 앱을 다시 켜도 같은 uid |
+| 경로 | `users/{uid}/events/{eventId}` |
+| 문서 | `AlarmEvent` 필드 그대로. 시각 필드는 문자열 그대로 |
+| 쓰기 | `setDoc`으로 덮어쓰기. `eventId`가 같으면 결과가 같다(멱등) |
+| 읽기 | 앱은 Firestore를 읽지 않는다(추천은 기기 기록으로, M3 ESLint 규칙) |
+| 설정 없음 | `app/.env`가 비어 있으면(`isFirebaseConfigured` 거짓) 업로드를 건너뛰고 기기 기록만으로 동작한다 |
+
+보안 규칙 (`firestore.rules`, 콘솔에 반영됨):
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/events/{eventId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
+```
+
+- PR #10 프로토타입의 이벤트 ID(`${alarmId}_${Date.now()}`)와 문서 모양은 I-1 확인용이다. I-4·I-9에서 1절 이벤트 ID 규칙과 C4 `AlarmEvent`로 맞춘다
+- 기획안·시연의 근거로 팀 기록을 내려받을 때는 Firebase 콘솔이나 Admin SDK(서비스 계정 키, **커밋 금지**)를 쓴다
 
 ## C12. 화면이 읽는 상태 (A 화면 ↔ B 추천)
 

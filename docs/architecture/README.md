@@ -3,7 +3,7 @@
 > 구조 규칙과, 그 규칙을 **사람이 아니라 도구가 막는 방법**. 규칙의 근거는 [context/design.md](../context/design.md) 2·3절, 함수·데이터 모양은 [context/contracts.md](../context/contracts.md)가 기준이다. 검증을 언제·어떻게 돌리나는 [system/](../system/README.md).
 > 규칙을 바꾸려면 코드보다 먼저 `docs(contract):` PR을 올린다 ([context/contracts.md 9절](../context/contracts.md#9-계약을-바꾸는-절차)).
 
-전체 스타일: **모바일 앱 단독 + 오프라인 전처리.** 서버 없음, 기록은 기기에만(design.md 3절 AD6). Firestore는 다음 단계.
+전체 스타일: **모바일 앱 + 오프라인 전처리.** 서버 연산 없음, Firestore는 보관용(쓰기만, design.md 3절 AD6).
 
 ## 계층과 의존 방향 (앱)
 
@@ -19,7 +19,7 @@
 |---|---|---|---|---|
 | M1 | 휴대폰에서 신경망을 돌리지 않는다 | D4, AD1 | ESLint `no-restricted-imports`로 `@tensorflow/*`, `*tflite*`, `onnxruntime*` 금지 | ✅ |
 | M2 | 추천 모듈(`lib/recommend.ts`, `lib/sound-library.ts`)은 순수·결정적 함수. 시간·무작위·저장소·네트워크 접근 금지. Thompson 표본·음량 흔들림의 난수는 입력 `seed`로 만든 결정적 난수만 쓴다(C8 규칙 6) | C8 | 두 파일에만 ESLint `no-restricted-imports`(`firebase`, `expo-*`, 저장소, alarm·firebase·stores를 별칭과 상대 경로 모두), `no-restricted-properties`(`Date.now`, `performance.now`, `Math.random`), `no-restricted-syntax`(인자 없는 `new Date()`), `no-restricted-globals`(`fetch`) | ✅ |
-| M3 | 앱은 Firestore를 읽지 않는다 (PoC는 쓰지도 않음, 다음 단계에서 쓰기만) | C11 | ESLint `no-restricted-imports`로 `firebase/firestore`의 `getDoc`·`getDocs`·`onSnapshot` 등 금지 | ✅ |
+| M3 | 앱은 Firestore를 읽지 않는다 (쓰기만) | C11 | ESLint `no-restricted-imports`로 `firebase/firestore`의 `getDoc`·`getDocs`·`onSnapshot` 등 금지 | ✅ |
 | M4 | 위 의존 방향. `lib/`·`stores/`는 화면을 import하지 않는다 | app/AGENTS.md | `lib/`·`stores/`에 ESLint `no-restricted-imports`로 `@/app/*` 금지 | ✅ |
 | M5 | `sounds.json`·`sound-assets.ts`·`app/assets/sounds/`는 파이프라인 출력. 손으로 고치지 않는다 | C2, C3 | 앱 로더와 파이프라인이 둘 다 C2 규칙(ID 형식·정렬·임베딩 길이·L2 노름) 검사, 테스트로 확인 | ⬜ |
 | M6 | 소리 ID는 `^[a-z][a-z0-9_]{0,31}$` (하이픈 금지) | 1절 | M5의 로더·파이프라인 검사에 포함 | ⬜ |
