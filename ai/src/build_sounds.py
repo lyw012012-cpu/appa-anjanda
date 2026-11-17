@@ -6,6 +6,9 @@
 설계: docs/context/pipeline-design.md. 계약: docs/context/contracts.md C1~C4.
 """
 
+import csv
+import functools
+import os
 from pathlib import Path
 
 import librosa
@@ -137,3 +140,57 @@ def sim520_hand(y16: np.ndarray, f0: float | None) -> float:
     else:
         c = float(a @ r / (np.linalg.norm(a) * np.linalg.norm(r)))
     return float(near * (0.5 + 0.5 * c))
+
+
+# ── ②④ YAMNet, 520 닮음 비교값 ──
+
+AI_DIR = Path(__file__).resolve().parents[1]
+YAMNET_URL = "https://tfhub.dev/google/yamnet/1"
+
+
+@functools.cache
+def _yamnet():
+    os.environ.setdefault("TFHUB_CACHE_DIR", str(AI_DIR / "models"))
+    import tensorflow_hub as hub  # 느린 import라 처음 쓸 때만
+
+    model = hub.load(YAMNET_URL)
+    with open(model.class_map_path().numpy().decode()) as f:
+        names = [row["display_name"] for row in csv.DictReader(f)]
+    return model, names
+
+
+def yamnet_embed(y16: np.ndarray) -> tuple[np.ndarray, list[str]]:
+    model, names = _yamnet()
+    scores, emb, _ = model(y16.astype(np.float32))
+    v = emb.numpy().mean(axis=0)
+    top = np.argsort(scores.numpy().mean(axis=0))[::-1][:3]
+    return v / np.linalg.norm(v), [names[i] for i in top]
+
+
+def _cos(a: np.ndarray, b: np.ndarray) -> float:
+    return float(max(0.0, a @ b / (np.linalg.norm(a) * np.linalg.norm(b))))
+
+
+@functools.cache
+def _ref520_y16() -> np.ndarray:
+    from src.reference_sounds import SR, square
+
+    return two_rates(normalize(square(520), SR, "ref_520"), SR)[1]
+
+
+@functools.cache
+def _ref520_emb() -> np.ndarray:
+    return yamnet_embed(_ref520_y16())[0]
+
+
+def sim520_emb(emb: np.ndarray) -> float:
+    return _cos(emb, _ref520_emb())
+
+
+def mel_profile(y16: np.ndarray) -> np.ndarray:
+    mel = librosa.power_to_db(librosa.feature.melspectrogram(y=y16, sr=SR_LO, n_mels=64)).mean(axis=1)
+    return mel - mel.mean()
+
+
+def sim520_mel(y16: np.ndarray) -> float:
+    return _cos(mel_profile(y16), mel_profile(_ref520_y16()))
