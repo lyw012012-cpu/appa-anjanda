@@ -68,7 +68,8 @@ README와 실제 설정이 다른 곳을 맞추고, 평가 기준 원문을 확�
 - [x] GitHub 기본 브랜치를 `develop`으로 변경
 - [x] 공고의 심사 기준 네 가지를 design.md 0절에 기록(2026-11-18, 링커리어 공고)
 - [ ] 대회 홈페이지(ai-challenge.elice.page)에서 배점·기획안 형식 확인 → design.md 0절
-- [ ] `app.json`의 `name`·`slug`·`scheme`을 템플릿 값 `app`에서 프로젝트 이름으로 (PR #6)
+- [x] `app.json`의 `name`·`slug`·`scheme`을 템플릿 값 `app`에서 프로젝트 이름으로 (PR #6)
+- [x] README의 "React Native Reusables 우선 사용"을 실제 설치 여부에 맞게 정리 (PR #6)
 - [ ] README 기술 표를 실제와 맞추기(서버 연산 없음·Firestore 보관, AI는 TensorFlow·YAMNet) (PR #6 리뷰)
 
 ### 완료 조건

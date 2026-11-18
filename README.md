@@ -6,7 +6,7 @@
 | --- | --- |
 | 앱 | Expo (React Native), TypeScript, Expo Router |
 | 상태관리 | Zustand |
-| UI | React Native Reusables |
+| UI | React Native Reusables (설치 여부는 PROGRESS D6에서 결정, 아직 미설치) |
 | 서버 | Firebase (Firestore, Storage, Cloud Functions) |
 | AI | Python (librosa, PyTorch) |
 | 개발 도구 | VS Code + Claude Code |
