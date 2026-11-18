@@ -3,11 +3,12 @@
     cd ai && python -m src.collect_sounds            # 받은 파일은 다시 받지 않는다
     cd ai && python -m src.build_sounds --csv data/sounds.csv --app ../app
 
-- 외부 소리는 Wikimedia Commons에서만 가져온다. 라이선스는 실행할 때마다 Commons API로 다시 읽고,
+- 바탕 음원은 팀원이 모은 Pixabay 파일(ai/data/library/, 팀 드라이브로 공유). 라이선스 Pixabay Content License.
+- Commons 소리도 받을 수 있다(지금 목록에는 없음). Commons 라이선스는 실행할 때마다 API로 다시 읽고,
   ALLOWED_LICENSES 밖이면(예: CC BY-SA — 앱에 넣으면 같은 조건 공유 의무) 그 id를 적고 멈춘다.
-- 모자란 계열은 합성음(자체 제작)으로 채운다.
+- 모자란 계열과 520 닮음은 합성음(자체 제작)으로 채운다.
 - 원본(ai/data/)은 git 제외(contracts C1). 커밋하는 것은 이 목록과 ai/reports/sound_credits.md뿐이다.
-- group은 제목으로 붙인 초안이다. 사람이 듣고 확인한다(C1).
+- group은 YAMNet 분류로 붙인 초안이다. 사람이 듣고 확인한다(C1).
 """
 
 import argparse
@@ -52,9 +53,10 @@ class Entry:
     id: str
     title: str  # 화면에 보일 한국어 이름, 20자 이내
     group: str
-    commons: str | None = None  # Commons 파일 이름("File:" 없이). None이면 합성
+    commons: str | None = None  # Commons 파일 이름("File:" 없이)
     start: float = 0.0  # 원본에서 쓸 시작 초
     rep: bool = False  # 계열 대표(처음 설정 화면)
+    local: str | None = None  # ai/data/library/ 안의 Pixabay 파일. commons·local 둘 다 없으면 합성
 
 
 # ── 합성음 (자체 제작) ──
@@ -98,33 +100,49 @@ SYNTH = {
     "beep_triple_1k": triple_beep,
 }
 
-# ── 목록 (group은 제목 기준 초안. 듣고 고친다) ──
+# ── 목록 (group은 YAMNet 상위 분류와 멜로디 정도로 붙인 초안. 듣고 고친다) ──
+# 2026-11-18 팀 결정: 바탕 음원은 팀원이 모은 Pixabay 알림음(ai/data/library/, 팀 드라이브),
+# 520 닮음·삑 계열을 채우려고 합성음 2개를 더한다. Commons 소리는 요청 제한(429)으로 이번 목록에서 뺐다.
+# 뺀 파일: universfield-new-notification-040-493469.mp3(YAMNet 'Tick, Silence', 거의 무음),
+#          ElevenLabs 자동차 경보 사이렌(경보음 금지)
+
+PIXABAY_LICENSE = "Pixabay Content License"
+PIXABAY_RE = re.compile(r"^(?P<artist>dragon-studio|[a-z0-9]+)-(?P<title>.+)-(?P<num>\d+)\.mp3$")
 
 ENTRIES: tuple[Entry, ...] = (
-    # 벨
-    Entry("bell_ring", "종 울림", "bell", "Bell-ring.flac", rep=True),
-    Entry("doorbell_dingdong", "딩동 초인종", "bell", "Doorbell-classic-dingdong.ogg"),
-    Entry("doorbell_old", "옛날 초인종", "bell", "Doorbell-old-tring.ogg"),
-    Entry("clock_ring_mech", "태엽 시계 벨", "bell", "Mechanical Clock Ring (Directory.Audio).mp3"),
-    Entry("church_bells", "교회 종소리", "bell", "Church bells - Leverkusen, 2007.oga"),
-    Entry("wind_chime", "풍경 소리", "bell", "Windchime.ogg"),
-    # 멜로디
-    Entry("chime_ceg", "도미솔 차임", "melody", rep=True),
-    Entry("arpeggio_marimba", "마림바 아르페지오", "melody"),
-    Entry("music_box_lullaby", "오르골 자장가", "melody", "Lullaby wound up clock.ogg"),
-    Entry("marimba_folk", "마림바 연주", "melody", "Chiapanecas marimba.ogg"),
-    Entry("xylophone_bali", "발리 실로폰", "melody", "Bali xylophone.ogg"),
-    # 삑
-    Entry("beep_triple_1k", "삐삐삐 전자음", "beep", rep=True),
+    # 벨 (Ding·Doorbell·Bell·Glass)
+    Entry("bell_bicycle", "자전거 벨", "bell", local="universfield-new-notification-050-494248.mp3", rep=True),
+    Entry("bell_glass_short", "짧은 유리 딩", "bell", local="dragon-studio-new-notification-3-398649.mp3"),
+    Entry("bell_doorbell_ping", "초인종 핑", "bell", local="dragon-studio-notification-ping-372479.mp3"),
+    Entry("bell_glass_jingle", "유리 딸랑", "bell", local="dragon-studio-notification-sound-372474.mp3"),
+    Entry("bell_ding_beep", "딩 비프", "bell", local="dragon-studio-notification-sound-effect-372475.mp3"),
+    Entry("bell_jingle_ring", "딸랑 벨소리", "bell", local="soundreality-short-notification-sound-619506.mp3"),
+    Entry("bell_level_up", "레벨 업", "bell", local="universfield-level-up-191997.mp3"),
+    Entry("bell_jingle", "딸랑 알림", "bell", local="universfield-new-notification-018-363746.mp3"),
+    Entry("bell_ding", "딩 알림", "bell", local="universfield-new-notification-022-370046.mp3"),
+    Entry("bell_mallet_ding", "말렛 딩", "bell", local="universfield-new-notification-032-480570.mp3"),
+    Entry("bell_clang", "쨍 알림", "bell", local="universfield-new-notification-051-494246.mp3"),
+    Entry("bell_ding_dong", "딩동", "bell", local="universfield-new-notification-059-494262.mp3"),
+    Entry("bell_plop", "퐁 알림", "bell", local="universfield-system-notification-02-352442.mp3"),
+    # 멜로디 (Music·Mallet·Glockenspiel·Marimba). 대표는 음이 가장 많이 바뀌는 벨소리(McFarlane 2020, design.md 7절)
+    Entry("melody_ringtone_b", "벨소리 멜로디 2", "melody", local="universfield-ringtone-065-496263.mp3", rep=True),
+    Entry("melody_ringtone_a", "벨소리 멜로디 1", "melody", local="universfield-ringtone-021-365652.mp3"),
+    Entry("melody_ringtone_c", "벨소리 멜로디 3", "melody", local="universfield-ringtone-066-496266.mp3"),
+    Entry("melody_glock_chime", "글로켄 차임", "melody", local="soundreality-notification-bell-chime-630202.mp3"),
+    Entry("melody_marimba_note", "마림바 한 음", "melody", local="universfield-new-notification-024-370048.mp3"),
+    Entry("melody_glock_a", "글로켄 알림 1", "melody", local="universfield-new-notification-036-485897.mp3"),
+    Entry("melody_glock_b", "글로켄 알림 2", "melody", local="universfield-new-notification-038-487899.mp3"),
+    Entry("melody_glock_c", "글로켄 알림 3", "melody", local="universfield-new-notification-04-326127.mp3"),
+    Entry("melody_glock_d", "글로켄 알림 4", "melody", local="universfield-new-notification-042-493470.mp3"),
+    Entry("melody_marimba", "마림바 알림", "melody", local="universfield-new-notification-057-494255.mp3"),
+    Entry("melody_instrument", "악기 알림", "melody", local="universfield-new-notification-07-210334.mp3"),
+    # 삑 (Beep·Telephone·Sonar) + 합성
+    Entry("beep_soft", "부드러운 삑", "beep", local="universfield-new-notification-014-363678.mp3", rep=True),
+    Entry("beep_phone", "전화 알림음", "beep", local="universfield-new-notification-012-363675.mp3"),
+    Entry("beep_sonar", "소나 삑", "beep", local="universfield-notification-beep-229154.mp3"),
+    Entry("beep_cowbell", "카우벨 알림", "beep", local="universfield-new-notification-035-485894.mp3"),
     Entry("beep_square_520", "520Hz 삑삑", "beep"),
-    Entry("alarm_clock_digital", "디지털 알람시계", "beep", "Alarm Clock (Directory.Audio).mp3"),
-    Entry("buzzer_short", "버저", "beep", "Buzzer.wav"),
-    # 자연음
-    Entry("rooster_medium", "수탉 울음", "nature", "Medium rooster crowing.ogg", rep=True),
-    Entry("rooster_small", "작은 수탉 울음", "nature", "Small rooster crowing.ogg"),
-    Entry("blackbird", "검은지빠귀 노래", "nature", "Turdus merula 2.ogg"),
-    Entry("cuckoo", "뻐꾸기", "nature", "Cuculus canorus v01.ogg"),
-    Entry("water_trickle", "졸졸 물소리", "nature", "Water flowing pouring trickling.ogg"),
+    Entry("beep_triple_1k", "삐삐삐 전자음", "beep"),
 )
 
 # 재난 경보음·사이렌은 넣지 않는다: 본인·이웃이 실제 재난으로 착각할 수 있고(미국은 경보음 오용을 규제),
@@ -143,9 +161,13 @@ def validate_entries(entries: tuple[Entry, ...]) -> None:
             raise ValueError(f"group 값: {e.id} ({e.group})")
         if not e.title or len(e.title) > 20:
             raise ValueError(f"title 20자 이내: {e.id}")
-        if e.commons is None and e.id not in SYNTH:
+        if e.commons and e.local:
+            raise ValueError(f"commons·local 중 하나만: {e.id}")
+        if e.commons is None and e.local is None and e.id not in SYNTH:
             raise ValueError(f"합성 함수 없음: {e.id}")
-        text = f"{e.id} {e.title} {e.commons or ''}".lower().replace("_", " ")
+        if e.local and not PIXABAY_RE.match(e.local):
+            raise ValueError(f"Pixabay 파일 이름 형식(제작자-제목-번호.mp3) 아님: {e.id} ({e.local})")
+        text = f"{e.id} {e.title} {e.commons or ''} {e.local or ''}".lower().replace("_", " ")
         hit = next((w for w in BANNED_WORDS if w in text), None)
         if hit:
             raise ValueError(f"경보음·사이렌 금지: {e.id} ('{hit}')")
@@ -161,6 +183,12 @@ def validate_entries(entries: tuple[Entry, ...]) -> None:
 
 
 # ── Commons ──
+
+
+def pixabay_source(file_name: str) -> tuple[str, str]:
+    """'universfield-ringtone-065-496263.mp3' → ('Pixabay #496263 (URL 미확인)', 'universfield')."""
+    m = PIXABAY_RE.match(file_name)
+    return f"Pixabay #{m['num']} (URL 미확인)", m["artist"]
 
 
 def normalize_license(short_name: str) -> str | None:
@@ -238,13 +266,15 @@ def write_credits(rows: list[dict], path: Path) -> None:
     lines = [
         "# 알람 소리 출처",
         "",
-        "`python -m src.collect_sounds`가 만든다. 앱 안 출처 표시(CC BY)에도 이 표를 쓴다.",
+        "`python -m src.collect_sounds`가 만든다. 앱 안 출처 표시에도 이 표를 쓴다.",
+        "Pixabay 출처는 파일 이름의 번호이고 다운로드 페이지 URL은 확인하지 않았다.",
         "",
         "| id | 이름 | 계열 | 라이선스 | 만든 사람 | 출처 |",
         "|---|---|---|---|---|---|",
     ]
     for r in sorted(rows, key=lambda r: r["id"]):
-        src = "-" if r["source_url"] == "-" else f"[Commons]({r['source_url']})"
+        u = r["source_url"]
+        src = f"[Commons]({u})" if u.startswith("https://commons.wikimedia.org/") else u
         lines.append(f"| `{r['id']}` | {r['title']} | {r['group']} | {r['license']} | {r['artist']} | {src} |")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -261,7 +291,14 @@ def collect(entries: tuple[Entry, ...], data_dir: Path, offline: bool = False) -
     rows = []
     for e in entries:
         dest = sounds_dir / f"{e.id}.wav"
-        if e.commons is None:
+        if e.local:
+            src = data_dir / "library" / e.local
+            if not src.exists():
+                raise ValueError(f"{e.id}: 파일 없음 ai/data/library/{e.local} (팀 드라이브에서 받기)")
+            y, sr = sf.read(src, dtype="float32", always_2d=True)
+            sf.write(dest, clip(y.mean(axis=1), sr, e.start), sr, subtype="PCM_16")
+            lic, url, artist = PIXABAY_LICENSE, *pixabay_source(e.local)
+        elif e.commons is None:
             sf.write(dest, SYNTH[e.id](), SR, subtype="PCM_16")
             lic, url, artist = "자체 제작", "-", "팀"
         else:

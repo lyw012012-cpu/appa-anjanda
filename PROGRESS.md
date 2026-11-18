@@ -44,7 +44,7 @@ D8(익명 인증 유지)과 D13(Firebase 프로젝트)은 PR #10에서 끝냈다
 | I-0 레포 설정과 평가표 확인 | — | chore | 누구든 | — | 🔄 기본 브랜치·심사 기준·app.json 이름·README UI 줄·이슈 라벨 ✅ (PR #6), 배점 확인·README 기술 표 남음 |
 | I-1 알람 경로 | M1 (11/19 정오) | app-alarm | A | — | 🔄 프로토타입 PR #10, 실기기 확인 1~5 남음 |
 | I-2 오프라인 파이프라인 | M2 (11/20) | ai | C | — | 🔄 합성 소리까지 ✅ (PR #11), 실제 소리로 재실행 남음 |
-| I-3 소리 목록 수집 | M1 (11/19) | ai | C | — | ⬜ |
+| I-3 소리 목록 수집 | M1 (11/19) | ai | C | — | 🔄 30개(Pixabay 28 + 합성 2)·라이선스 표 ✅. 3계열이라 "4~6계열" 미달(자연음 없음), 계열은 YAMNet 초안이라 듣고 확인 필요, 원본 팀 드라이브 공유 남음 |
 | I-4 이벤트 기록 | M2 (11/20) | app-alarm | A | I-1 | ⬜ |
 | I-5 소리 목록 로드 | M2 (11/20) | app-recommend | B | I-2 | ⬜ |
 | I-6 습관화와 설정 파일 | M1 (11/19) | app-recommend | B | — | ⬜ |
@@ -66,7 +66,11 @@ D8(익명 인증 유지)과 D13(Firebase 프로젝트)은 PR #10에서 끝냈다
 |---|---|
 | I-2 파이프라인 (합성 소리까지) | `cd ai && .venv/Scripts/python -m pytest tests` → 28 passed (YAMNet 3개 포함). `python -m src.build_sounds --synthetic` → 소리 6개, `ai/out/`에만 출력, `app/` 변화 없음. `cd app && npm run check` 통과. 결론 `ai/reports/conclusion.md`. **남은 것**: 실제 소리(I-3)로 실행해 `app/`에 출력, 영점 0.58 한 번 갱신, 팀 거슬림 평가(E6). 계약 변경(C2·C3·C8 규칙 3)은 PR #9 댓글로 요청함 (2026-11-18) |
 
+| I-3 소리 목록 (진행 중) | `cd ai && python -m src.collect_sounds` → 소리 30개(벨 13·멜로디 11·삑 6), `ai/reports/sound_credits.md` 라이선스 빈칸 0. `read_csv(data/sounds.csv)` 30줄 통과. `python -m pytest tests` → 57 passed. **확인 못 한 것**: Pixabay 라이선스·URL(팀원 제공 정보로 적음), 계열을 귀로 확인, `build_sounds` 전체 실행(I-2 재실행에서), `npm run check`(이 PC에 Node 없음, 앱 파일은 안 바꿈). 경보음·사이렌은 금지어 검사로 제외. McFarlane 2020 대입: 멜로디가 뚜렷하고 1단계(거슬림 ≤ 0.3)에 드는 소리는 벨소리 3개뿐, 520 닮음은 합성음 외 거의 0 |
+
 ## 4. 막힘
 
 | 과제 | 무엇에 막혔나 | 누가 풀 수 있나 |
 |---|---|---|
+| I-3 자연음 계열 | Wikimedia Commons 다운로드가 요청 제한(429)에 반복해 걸림(연락처 없는 User-Agent로 추정). 그래서 3계열로 감 | C: 연락처를 넣을지 팀 결정, 또는 다른 음원 |
+| I-3 원본 공유 | Pixabay 원본 29개가 C의 PC `ai/data/library/`에만 있음 | C: 팀 드라이브에 올리기 |

@@ -16,6 +16,7 @@ from src.collect_sounds import (
     clip,
     collect,
     normalize_license,
+    pixabay_source,
     triple_beep,
     validate_entries,
     write_csv,
@@ -26,7 +27,34 @@ from src.reference_sounds import SR
 def test_manifest_follows_c1():
     validate_entries(ENTRIES)
     assert 15 <= len(ENTRIES) <= 30
-    assert 4 <= len({e.group for e in ENTRIES}) <= 6
+    # I-3 할 일은 4~6계열이지만, 2026-11-18 팀원 결정으로 자연음 없이 3계열(벨·멜로디·삑)로 간다.
+    # 자연음을 더하면 4로 되돌린다. C1 규칙(계열마다 3개 이상·대표 1개)은 validate_entries가 본다
+    assert 3 <= len({e.group for e in ENTRIES}) <= 6
+
+
+def test_pixabay_source_from_file_name():
+    assert pixabay_source("universfield-ringtone-065-496263.mp3") == ("Pixabay #496263 (URL 미확인)", "universfield")
+    assert pixabay_source("dragon-studio-new-notification-3-398649.mp3")[1] == "dragon-studio"
+    with pytest.raises(ValueError, match="Pixabay 파일 이름"):
+        validate_entries((Entry("a", "x", "bell", local="no_number.mp3", rep=True),))
+
+
+def test_local_files_get_pixabay_license(tmp_path):
+    lib = tmp_path / "library"
+    lib.mkdir()
+    names = [f"universfield-note-{i}-10{i}.mp3" for i in range(3)]
+    for n in names:
+        sf.write(lib / n, np.sin(np.arange(SR) / SR * 2 * np.pi * 440).astype(np.float32), SR, format="MP3")
+    es = tuple(Entry(f"s{i}", "x", "bell", local=n, rep=(i == 0)) for i, n in enumerate(names))
+    rows = collect(es, tmp_path, offline=True)
+    assert {r["license"] for r in rows} == {"Pixabay Content License"}
+    assert rows[0]["source_url"] == "Pixabay #100 (URL 미확인)" and rows[0]["artist"] == "universfield"
+
+
+def test_missing_local_file(tmp_path):
+    es = tuple(Entry(f"s{i}", "x", "bell", local=f"a-b-{i}.mp3", rep=(i == 0)) for i in range(3))
+    with pytest.raises(ValueError, match="파일 없음"):
+        collect(es, tmp_path, offline=True)
 
 
 @pytest.mark.parametrize(
