@@ -19,8 +19,8 @@ export interface Sound {
   durationSec: number;
   embedding: number[];
   sim520: Record<Sim520Method, number>;
-  pitch: number; // 0 낮음 ~ 1 높음
-  harshness: number; // 0~1, 거슬림 추정
+  pitch: number; // 0 낮음 ~ 1 높음, 100~4000 Hz 로그 눈금 고정. 모르면 0.5
+  harshness: number; // 0~1, 거슬림 추정(차임 0 · 버저 1 고정 기준)
   top3: string[];
 }
 
@@ -45,7 +45,7 @@ export interface UserSettings {
   gentleMode: boolean; // 대비 폭 축소, 재확인은 진동만 (MVP 밖이면 항상 false)
 }
 
-/** 밴딧 입력. [상수 1, 단계 위치 (stage−1)/2, pHabit, sim520n, pitch] 순서 고정 */
+/** 밴딧 입력. [상수 1, 단계 위치 (stage−1)/2, pHabit, sim520, pitch] 순서 고정 */
 export type Features = [number, number, number, number, number];
 
 /** 한 단계의 계획 */

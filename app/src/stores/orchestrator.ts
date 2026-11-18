@@ -1,4 +1,5 @@
-// contracts.md C10 연결 순서 (A). 화면과 앱 시작 코드는 이 함수들만 부른다. 몸통은 I-9.
+// contracts.md C10 연결 순서 (A). 저장소(C7)와 lib(알람·추천)를 함께 부르므로 stores 계층에 둔다(의존 방향: 화면 → stores → lib).
+// 화면과 앱 시작 코드는 이 함수들만 부른다. 몸통은 I-9.
 import type { Alarm, OccurrenceRecord, StateAnswer } from '@/types/contracts';
 
 /** 알람 한 번 끝: 저장 → 업로드 시작 → 다음 계획 → 재예약. 끈 경우 화면이 상태 질문을 띄운다 */
