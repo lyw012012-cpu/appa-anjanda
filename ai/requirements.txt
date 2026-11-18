@@ -1,8 +1,12 @@
-numpy
-scipy
-librosa
-soundfile
-scikit-learn
-torch
-matplotlib
+numpy==2.5.5
+scipy==1.18.1
+librosa==1.0.1
+soundfile==0.14.0
+scikit-learn==1.9.1
+matplotlib==3.11.2
 jupyter
+tensorflow==2.21.0
+tensorflow-hub==0.16.1
+setuptools==80.10.2
+pytest==9.2.0
+# 고정 기준(pitch·harshness·sim520)과 mp3 크기가 버전에 따라 조금씩 달라지므로 정확한 버전으로 고정한다
