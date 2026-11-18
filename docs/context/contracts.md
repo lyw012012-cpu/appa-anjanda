@@ -78,6 +78,7 @@ flowchart LR
 - 위치: `app/src/data/sounds.json` (**커밋함**, 파이프라인 출력이며 사람이 손으로 고치지 않는다)
 - 만드는 명령: `cd ai && python -m src.build_sounds --csv data/sounds.csv --app ../app`
 - 타입은 C4의 `SoundLibrary`. 필드별 규칙:
+- **특징 값은 모두 고정 기준으로 계산한다.** 소리 목록 기준으로 정규화하지 않는다. 소리를 추가해도 기존 소리의 값이 바뀌지 않아야 밴딧이 배운 가중치의 뜻이 유지된다(PR #9 댓글, PR #11)
 
 | 필드 | 규칙 |
 |---|---|
@@ -85,12 +86,12 @@ flowchart LR
 | `generatedAt` | 생성 시각(1절 시각 규칙) |
 | `model.space` | `"yamnet"`·`"logmel"`·`"hand"`. 기본 `"yamnet"`(E1을 하면 바뀔 수 있음) |
 | `model.embeddingDim` | 공간에 따라 `1024`·`64`·손 특징 수 (가짜 데이터는 `4`). 모든 `embedding` 길이와 같아야 함 |
-| `model.simMedian` | 서로 다른 소리 쌍 전부의 `max(0, 내적)` 중앙값, 0 이상 1 미만, 소수 5자리. 습관화 일반화와 대비의 바닥값([design.md 4.3](design.md#43-익숙함-노출-기준)). 소리가 1개면 `0` |
+| `model.simMedian` | 유사도 영점. 0 이상 1 미만. 습관화 일반화와 대비의 바닥값([design.md 4.3](design.md#43-익숙함-노출-기준)). **파이프라인은 고정 상수를 쓴다**: 지금 0.58(PR #7 6.2 합성 소리 36쌍의 중앙값), I-3 소리 수집 뒤 실제 목록의 쌍별 `max(0, 내적)` 중앙값으로 **한 번만** 다시 재서 고정한다. 필드로 남겨 두는 이유: 가짜 데이터(8절)는 0을 쓰고, 앱 로더는 범위만 검사한다 |
 | `sounds` | 1개 이상. `id` 중복 없음. `id` 오름차순 정렬 |
 | `sounds[].embedding` | 길이 `embeddingDim`, **L2 노름 1 ± 1e-3**, 소수 5자리 |
-| `sounds[].sim520.emb·mel·hand` | 각각 0~1. 세 방식 모두 항상 채운다(어느 것을 쓸지는 C9 `sim520Method`). `emb`는 YAMNet 임베딩, `mel`은 평균을 뺀 로그 멜, `hand`는 기본음 400~650 Hz + 홀수 배음 |
-| `sounds[].pitch` | 0~1. 기본음(없으면 스펙트럼 중심)의 `log2(Hz)`를 소리 목록 안에서 최소-최대 정규화. 0이 가장 낮음 [가설: 계산식은 C가 정해 PR에 적음] |
-| `sounds[].harshness` | 0~1. 날카로움·거칠기 근사치의 정규화 조합. 평균적 경향일 뿐 개인 혐오감이 아님 [가설] |
+| `sounds[].sim520.emb·mel·hand` | 각각 0~1. 세 방식 모두 항상 채운다(어느 것을 쓸지는 C9 `sim520Method`). `emb`는 YAMNet 임베딩, `mel`은 평균을 뺀 로그 멜, `hand`는 **520 Hz와 가까운 정도**(기본음이 400·650 Hz일 때 0.5) **× 사각파 음색**(순음 0.5, 사각파 1). 기본음이 없으면 `hand` = 0 [가설] |
+| `sounds[].pitch` | 0~1. 기본음 `f`의 100~4000 Hz 로그 눈금: `clip((log2 f − log2 100) / (log2 4000 − log2 100), 0, 1)`(520 Hz ≈ 0.447). 기본음이 잡힌 구간이 30% 미만이면 0.5(모름) |
+| `sounds[].harshness` | 0~1. 날카로움(44.1 kHz 스펙트럼 중심, 100~8000 Hz 로그 눈금)과 거칠기(평균 크기 대비 15~300 Hz 떨림 깊이)를 0.5씩 섞은 원점수를, 차임 = 0·버저(3 kHz 사각파를 70 Hz로 100% 진폭 변조) = 1로 고정해 0~1로 자른다. 평균적 경향일 뿐 개인 혐오감이 아님 [가설, E6로 확인] |
 | `sounds[].groupRep` | `sounds.csv`의 `group_rep` |
 | `sounds[].durationSec` | 0보다 큼 |
 | `sounds[].top3` | YAMNet 상위 3개 클래스 이름(영어 원문). 설명·검증용, 점수에 안 씀 |
@@ -102,7 +103,7 @@ flowchart LR
 
 | 산출물 | 위치 | 규칙 |
 |---|---|---|
-| 소리 파일 | `app/assets/sounds/<id>.<ext>` | 파이프라인이 변환해 복사. 기본: mp3, 모노, 44.1 kHz, 30초 이하, 전체 10 MB 이하(I-1 결과로 바뀔 수 있음, 10절). **음량을 맞춘다**: 앞뒤 무음을 자르고(삑-쉼 사이 쉼은 유지) RMS −20 dBFS로 맞추되, 피크가 −1 dBFS를 넘으면 그만큼 낮춘다 [가설]. 깨우는 크기는 앱의 단계별 재생 음량이 정한다. 특징(임베딩·`sim520`·`pitch`·`harshness`)도 맞춘 파형으로 계산한다 |
+| 소리 파일 | `app/assets/sounds/<id>.<ext>` | 파이프라인이 변환해 복사. 기본: mp3, 모노, 44.1 kHz, **64 kbps 고정 비트레이트**, 30초 이하, 전체 10 MB 이하(30초 × 30개 ≈ 7 MB, I-1 결과로 바뀔 수 있음, 10절). **음량을 맞춘다**: 앞뒤 무음을 자르고(삑-쉼 사이 쉼은 유지) **소리가 나는 구간만으로 잰** RMS를 −20 dBFS로 맞추되, 피크가 −1 dBFS를 넘으면 그만큼 낮춘다 [가설]. 깨우는 크기는 앱의 단계별 재생 음량이 정한다. 특징(임베딩·`sim520`·`pitch`·`harshness`)도 맞춘 파형으로 계산한다 |
 | 자산 목록 | `app/src/data/sound-assets.ts` | 파이프라인이 생성. `export const soundAssets: Record<SoundId, number> = { bell_01: require('../../assets/sounds/bell_01.mp3'), ... }`. RN은 `require` 경로가 정적이어야 해서 손으로 쓰지 않고 생성한다 |
 
 `sounds.json`의 모든 `id`가 `soundAssets`에 있어야 한다(로더가 검사).
@@ -132,8 +133,8 @@ export interface Sound {
   durationSec: number;
   embedding: number[];
   sim520: Record<Sim520Method, number>;
-  pitch: number; // 0 낮음 ~ 1 높음
-  harshness: number; // 0~1, 거슬림 추정
+  pitch: number; // 0 낮음 ~ 1 높음, 100~4000 Hz 로그 눈금 고정. 모르면 0.5
+  harshness: number; // 0~1, 거슬림 추정(차임 0 · 버저 1 고정 기준)
   top3: string[];
 }
 
@@ -158,7 +159,7 @@ export interface UserSettings {
   gentleMode: boolean; // 대비 폭 축소, 재확인은 진동만 (MVP 밖이면 항상 false)
 }
 
-/** 밴딧 입력. [상수 1, 단계 위치 (stage−1)/2, pHabit, sim520n, pitch] 순서 고정 */
+/** 밴딧 입력. [상수 1, 단계 위치 (stage−1)/2, pHabit, sim520, pitch] 순서 고정 */
 export type Features = [number, number, number, number, number];
 
 /** 한 단계의 계획 */
@@ -345,7 +346,7 @@ export function planAlarm(input: {
 
 1. 거리: `sim(a, a)` = 1. `a ≠ b`면 `simNormalize`가 `'median'`일 때 `clip((max(0, 내적) − m) / (1 − m), 0, 1)`, `m` = `library.model.simMedian`. `'none'`이면 `max(0, 내적)`
 2. 습관화(**노출 기준**): `H(c) = Σ_구간 p exposureGain × (p.playedSec / stageSec) × sim(c, p.soundId) × exp(−Δ일 / tauDays)`. `p`는 모든 이벤트의 `played` 중 `soundId`가 있는 구간, `Δ일` = (`now` − `p.startedAt`)을 일 단위 소수로. `now`보다 뒤는 무시. 결과의 좋고 나쁨은 쓰지 않는다. `pHabit` = 1 − exp(−H), `habituated` = `pHabit ≥ habituatedAt`
-3. 특징: `x(c, s) = [1, (s − 1)/2, pHabit(c), sim520n(c), c.pitch]`. `sim520n`은 `sim520Method` 값을 소리 목록 전체 기준 최소-최대 정규화(최댓값 = 최솟값이면 모두 0.5)
+3. 특징: `x(c, s) = [1, (s − 1)/2, pHabit(c), c.sim520[sim520Method], c.pitch]`. **앱은 특징을 다시 정규화하지 않는다**(파이프라인이 고정 기준으로 0~1을 만든다, C2)
 4. 보상(재생된 구간마다, [ai-design.md](https://github.com/lyw012012-cpu/appa-anjanda/pull/7) 7.6):
    - `end`가 `next`: 0. 단, 그다음 구간에서 시작 후 `graceSec` 안에 `dismissed`면 **이 구간**을 끈 것으로 보고 `0.5 + 0.5 × exp(−playedSec / reward.tauSec)`를 주고, 그다음 구간은 학습에서 뺀다
    - `dismissed`: `0.5 + 0.5 × exp(−playedSec / reward.tauSec)`
@@ -534,7 +535,7 @@ service cloud.firestore {
 | `nature_a` | nature | [0, 0, 0.6, 0.8] | 0.2 | 0.6 | 0.1 |
 | `square_520` | beep | [1, 0, 0, 0] | 1.0 | 0.0 | 0.5 |
 
-(`emb`·`mel`은 `hand`와 같은 값, `top3`는 `[]`, `durationSec` 3, `license` `"자체 제작"`, `groupRep`는 `melody_a`·`nature_a`·`square_520`이 참. `model.simMedian` = 0: 서로 다른 쌍 6개의 내적이 0, 0, 0.6, 0.6, 0, 0)
+(`emb`·`mel`은 `hand`와 같은 값, `top3`는 `[]`, `durationSec` 3, `license` `"자체 제작"`, `groupRep`는 `melody_a`·`nature_a`·`square_520`이 참. **`model.simMedian` = 0**: 실제 파이프라인 상수(0.58)가 아니라 테스트용 값이다. 0.58을 쓰면 `beep_3k`·`square_520` 유사도가 0.6에서 0.048로 줄어 아래 일반화 사례가 성립하지 않는다. 표의 `pitch`·`harshness`도 계산 규칙을 시험하기 위한 입력값이다. 2026-11-18 특징 정규화를 없앤 뒤 다시 계산했고, `hand`가 이미 0~1의 양 끝(0, 1)을 가져 기대값은 바뀌지 않았다)
 
 설정: `recommendConfig` 기본값에서 `recentExclude: 1`, `bandit.mode: 'mean'`만 바꿈. 사용자 설정: `chosen: ['melody_a']`, `excluded: []`. `now` = `2026-11-16T07:00:00+09:00`. 아래 값은 파이썬으로 계산했고, 테스트는 소수 4자리로 반올림해 비교한다.
 
@@ -595,7 +596,8 @@ service cloud.firestore {
 |---|---|---|
 | 소리 파일 형식·최대 길이·위치(채널 소리가 네이티브 리소스면 `require` 목록 대신 리소스 이름) | I-1 알람 경로 | C3, C5 `sound_missing` |
 | 단계별 소리 바꾸기·재확인 알림이 되나, 미디어 볼륨 0일 때 | I-1 ([ai-design.md](https://github.com/lyw012012-cpu/appa-anjanda/pull/7) 8절 1~5) | C5 대안 규칙 |
-| `pitch`·`harshness` 계산식 | I-2에서 C가 정함 | C2 |
+| 거슬림의 0점·1점 기준 소리(3100 Hz 순음이 0.04로 차임과 거의 같게 나옴, PR #11) | 팀 거슬림 평가(E6) | C2 `harshness` |
 | 대비를 재는 방법: 지금은 임베딩 거리(`contrastMaxSim`). 음량·음높이·거칠기 축이 나으면 바꿈 | I-13 시뮬레이션, 팀 결정(ai-design.md 12절 2) | C8 규칙 9·10 |
-| 520 닮음(`hand`)과 `pitch`가 같은 기본음에서 나와 함께 움직이는지. 상관이 높으면 가중치를 나눌 수 없어 하나를 뺀다 | I-2에서 상관 계산, I-13 | C4 `Features`, C9 |
+| 520 닮음(`hand`)과 `pitch`가 같은 기본음에서 나와 함께 움직이는지. 합성 소리 6개에서 r = −0.63(기준 0.7 아래, PR #11). 실제 목록에서 다시 잰다. 또 `hand`는 400~650 Hz 밖이면 거의 0이라, 0인 소리가 많으면 520 가중치가 배울 것이 없다 | I-3 뒤 I-2 재실행, I-13 | C4 `Features`, C2 `hand` |
+| `simMedian` 고정값 갱신(0.58 → 실제 목록 중앙값, 한 번만) | I-3 | C2 |
 | 시뮬레이션 실행 방법(앱의 `planAlarm`을 그대로 불러야 함, 파이썬 재구현 금지) | I-13에서 B가 정함(jest 테스트 안에서 돌려 결과 파일을 쓰는 방식 [제안]) | design.md 5절 |
