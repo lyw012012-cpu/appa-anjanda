@@ -28,6 +28,7 @@
 | 아키텍처 제약: 구조 규칙과 도구로 막는 방법 | [docs/architecture/](docs/architecture/README.md) |
 | 시스템 제약: 타입 검사·린트, 자동 테스트, 검증 다각화 | [docs/system/](docs/system/README.md) |
 | 왜 이렇게 설계했나, 점수 공식, 실험 | [docs/context/design.md](docs/context/design.md) 3·4·6절 |
+| 내 담당(A·B·C)이 고칠 수 있는 파일, 시작 문장 | [docs/context/vibe-coding.md](docs/context/vibe-coding.md) |
 | 지금 맡은 이슈의 범위·완료 조건 | [docs/context/issues-draft.md](docs/context/issues-draft.md) |
 | Expo API·명령 | [app/AGENTS.md](app/AGENTS.md) (Expo SDK 58 문서 기준, 기억에 의존 금지) |
 | 지금 어디까지 했나 | [PROGRESS.md](PROGRESS.md) |

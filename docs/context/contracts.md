@@ -447,7 +447,7 @@ export const recommendConfig: RecommendConfig = {
 
 ## C10. 연결 순서 (A 제공)
 
-- 위치: `app/src/lib/orchestrator.ts`. 화면과 앱 시작 코드는 이 함수들만 부른다
+- 위치: `app/src/stores/orchestrator.ts`. 저장소(C7)와 알람·추천(lib)을 함께 부르므로 stores 계층에 둔다([architecture](../architecture/README.md) 의존 방향). 화면과 앱 시작 코드는 이 함수들만 부른다
 
 ```ts
 /** 알람 한 번 끝: 저장 → 다음 계획 → 재예약. 끈 경우 화면이 상태 질문을 띄운다 */
