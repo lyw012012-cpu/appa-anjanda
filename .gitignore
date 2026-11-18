@@ -29,6 +29,7 @@ ai/data/*
 !ai/data/.gitkeep
 ai/models/*
 !ai/models/.gitkeep
+ai/out/
 
 # Firebase
 .firebase/
