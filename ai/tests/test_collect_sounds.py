@@ -43,6 +43,20 @@ def test_manifest_rejects(bad, rule):
         validate_entries(bad)
 
 
+@pytest.mark.parametrize(
+    "entry",
+    [
+        Entry("siren_fire", "소방차", "beep", "Fire.ogg"),
+        Entry("tone", "재난 경보음", "beep", "Tone.ogg"),
+        Entry("tone", "알림음", "beep", "Alarm Alert sound in United States 2025.opus"),
+        Entry("tone", "알림음", "beep", "Civil-defense-siren-waver.ogg"),
+    ],
+)
+def test_manifest_rejects_alert_and_siren(entry):
+    with pytest.raises(ValueError, match="경보음·사이렌 금지"):
+        validate_entries((entry,))
+
+
 def test_one_rep_per_group():
     es = tuple(Entry(f"s{i}", "x", "bell", f"{i}.ogg", rep=True) for i in range(3))
     with pytest.raises(ValueError, match="대표"):

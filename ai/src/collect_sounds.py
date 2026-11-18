@@ -118,7 +118,6 @@ ENTRIES: tuple[Entry, ...] = (
     Entry("beep_triple_1k", "삐삐삐 전자음", "beep", rep=True),
     Entry("beep_square_520", "520Hz 삑삑", "beep"),
     Entry("alarm_clock_digital", "디지털 알람시계", "beep", "Alarm Clock (Directory.Audio).mp3"),
-    Entry("alert_tone_us", "재난 경보음", "beep", "Alarm Alert sound in United States 2025.opus"),
     Entry("buzzer_short", "버저", "beep", "Buzzer.wav"),
     # 자연음
     Entry("rooster_medium", "수탉 울음", "nature", "Medium rooster crowing.ogg", rep=True),
@@ -126,12 +125,12 @@ ENTRIES: tuple[Entry, ...] = (
     Entry("blackbird", "검은지빠귀 노래", "nature", "Turdus merula 2.ogg"),
     Entry("cuckoo", "뻐꾸기", "nature", "Cuculus canorus v01.ogg"),
     Entry("water_trickle", "졸졸 물소리", "nature", "Water flowing pouring trickling.ogg"),
-    # 기타(사이렌)
-    Entry("siren_constant", "민방위 사이렌", "other", "Civil-defense-siren-constant.ogg", rep=True),
-    Entry("siren_waver", "오르내리는 사이렌", "other", "Civil-defense-siren-waver.ogg"),
-    Entry("siren_toy", "장난감 사이렌", "other", "Toy siren alarm.ogg"),
-    Entry("siren_fire", "소방 사이렌", "other", "Motorsirene - Feuerwehralarm.ogg"),
 )
+
+# 재난 경보음·사이렌은 넣지 않는다: 본인·이웃이 실제 재난으로 착각할 수 있고(미국은 경보음 오용을 규제),
+# 이 앱은 익숙해질수록 낯선 소리를 고르므로 오히려 자주 뽑힐 수 있다
+BANNED_WORDS = ("siren", "alert", "civil-defense", "civil defense", "emergency", "air raid", "tornado",
+                "사이렌", "경보", "재난", "민방위")
 
 
 def validate_entries(entries: tuple[Entry, ...]) -> None:
@@ -146,6 +145,10 @@ def validate_entries(entries: tuple[Entry, ...]) -> None:
             raise ValueError(f"title 20자 이내: {e.id}")
         if e.commons is None and e.id not in SYNTH:
             raise ValueError(f"합성 함수 없음: {e.id}")
+        text = f"{e.id} {e.title} {e.commons or ''}".lower().replace("_", " ")
+        hit = next((w for w in BANNED_WORDS if w in text), None)
+        if hit:
+            raise ValueError(f"경보음·사이렌 금지: {e.id} ('{hit}')")
     dup = {i for i in ids if ids.count(i) > 1}
     if dup:
         raise ValueError(f"id 중복: {', '.join(sorted(dup))}")
