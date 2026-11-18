@@ -27,6 +27,7 @@ export async function scheduleTestAlarm(seconds: number): Promise<string> {
     title: '아빠 안잔다',
     android: {
       alertActionMode: 'openAppOnly',
+      fullScreenTarget: 'app', // 잠금 화면 위로 우리 알람 화면을 바로 띄운다(plugins/with-show-when-locked)
       secondaryButtonTitle: '알람 열기',
       maxRingDurationSeconds: 0,
     },
