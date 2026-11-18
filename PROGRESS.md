@@ -64,6 +64,7 @@ D8(익명 인증 유지)과 D13(Firebase 프로젝트)은 PR #10에서 끝냈다
 
 | 과제 | 증거 (돌린 명령과 결과, PR) |
 |---|---|
+| I-2 파이프라인 (합성 소리까지) | `cd ai && .venv/Scripts/python -m pytest tests` → 28 passed (YAMNet 3개 포함). `python -m src.build_sounds --synthetic` → 소리 6개, `ai/out/`에만 출력, `app/` 변화 없음. `cd app && npm run check` 통과. 결론 `ai/reports/conclusion.md`. **남은 것**: 실제 소리(I-3)로 실행해 `app/`에 출력, 영점 0.58 한 번 갱신, 팀 거슬림 평가(E6). 계약 변경(C2·C3·C8 규칙 3)은 PR #9 댓글로 요청함 (2026-11-18) |
 
 ## 4. 막힘
 
