@@ -23,7 +23,7 @@
 |---|---|---|---|---|---|
 | D1 | 담당(A 알람·B 추천·C AI) 확정 | issues-draft 담당 제안 | 전원 | **11/18** | ✅ 2026-11-18: A lyw012012-cpu · B yj2trigger · C chickenbbqr ([vibe-coding.md](docs/context/vibe-coding.md)) |
 | D2 | 아키텍처 결정 AD1~AD7 확정 | design.md 3절 (PoC 범위로 다시 씀, 2026-11-18) | 전원 | 11/18 | 🔄 계약 변경 PR로 제안 |
-| D3 | 이슈 초안을 GitHub 이슈로 등록 (등록 전 중복 확인) | issues-draft | 누구든 | 11/19 | ⬜ |
+| D3 | 이슈 초안을 GitHub 이슈로 등록 (등록 전 중복 확인) | issues-draft | 누구든 | 11/19 | ✅ 2026-11-18: #14~#27, 담당자 지정 |
 | D4 | 공모전 평가표 원문 확인 → design.md 0절 | design.md 0절 | 누구든 | 11/19 | 🔄 심사 기준 4개 확인(공고), 배점·기획안 형식은 대회 홈페이지 확인 필요 |
 | D5 | 테스트 도구 확정 → jest-expo + pytest | contracts 10절 | — | — | ✅ 2026-11-17 |
 | D6 | UI 라이브러리: React Native Reusables 설치할지 | AGENTS.md 2절, I-0 | 전원 | I-8 전 | ⬜ (설치하지 않고 기본 컴포넌트로 가는 것을 [제안]: 시간 절약) |
