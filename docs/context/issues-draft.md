@@ -16,7 +16,9 @@
 설계 원안은 [ai-design.md(PR #7)](https://github.com/lyw012012-cpu/appa-anjanda/pull/7). PoC 범위 = [design.md 1.2](design.md#12-범위)의 "PoC" 열(3단계 재생, 상태 질문·재확인, 처음 설정, "이 소리 빼기", 노출 기준 습관화, 특징 5개 밴딧) + 6절 실험 E0·E2·E5. 시간이 남으면 I-12(E1).
 다음 단계(기획안에만): 시작 단계 자동 조정, 아침/낮잠 구분, 부드러운 모드, 거슬림 사람 평가, iOS.
 
-## 담당 제안 (오늘 확정)
+## 담당 (2026-11-18 확정: A lyw012012-cpu · B yj2trigger · C chickenbbqr)
+
+각자 Claude로 작업할 때의 범위·금지·시작 문장은 [vibe-coding.md](vibe-coding.md).
 
 | 사람 | 영역 | 이슈 | 지금 시작 가능 |
 |---|---|---|---|
