@@ -103,7 +103,7 @@ flowchart LR
 
 | 산출물 | 위치 | 규칙 |
 |---|---|---|
-| 소리 파일 | `app/assets/sounds/<id>.<ext>` | 파이프라인이 변환해 복사. 기본: mp3, 모노, 44.1 kHz, **64 kbps 고정 비트레이트**, 30초 이하, 전체 10 MB 이하(30초 × 30개 ≈ 7 MB, I-1 결과로 바뀔 수 있음, 10절). **음량을 맞춘다**: 앞뒤 무음을 자르고(삑-쉼 사이 쉼은 유지) **소리가 나는 구간만으로 잰** RMS를 −20 dBFS로 맞추되, 피크가 −1 dBFS를 넘으면 그만큼 낮춘다 [가설]. 깨우는 크기는 앱의 단계별 재생 음량이 정한다. 특징(임베딩·`sim520`·`pitch`·`harshness`)도 맞춘 파형으로 계산한다 |
+| 소리 파일 | `app/assets/sounds/<id>.<ext>` | 파이프라인이 변환해 복사. 기본: mp3, 모노, 44.1 kHz, **64 kbps 고정 비트레이트**, 30초 이하, 전체 10 MB 이하(30초 × 30개 ≈ 7 MB, I-1 결과로 바뀔 수 있음, 10절). **음량을 맞춘다**: 앞뒤 무음을 자르고(삑-쉼 사이 쉼은 유지) **소리가 나는 구간만으로 잰** RMS를 −20 dBFS로 맞추되, 피크가 −1 dBFS를 넘으면 그만큼 낮춘다 [가설]. 깨우는 크기는 앱의 단계별 재생 음량이 정한다. 특징(임베딩·`sim520`·`pitch`·`harshness`)도 맞춘 파형으로 계산한다. **단 YAMNet 입력(`embedding`·`top3`·`sim520.emb`)은 맞춘 파형이 4초보다 짧으면 이어 붙여 4초로 반복한다**: 앱은 단계 동안 소리를 반복 재생하고(`sequence-player.ts` `loop`), YAMNet은 0.96초 창이라 짧은 소리는 무음을 채워 본다. `pitch`·`harshness`·`sim520.hand`·`sim520.mel`은 반복하지 않은 파형으로 계산한다(이어 붙인 경계가 기본음 검출을 흐림) |
 | 자산 목록 | `app/src/data/sound-assets.ts` | 파이프라인이 생성. `export const soundAssets: Record<SoundId, number> = { bell_01: require('../../assets/sounds/bell_01.mp3'), ... }`. RN은 `require` 경로가 정적이어야 해서 손으로 쓰지 않고 생성한다 |
 
 `sounds.json`의 모든 `id`가 `soundAssets`에 있어야 한다(로더가 검사).
