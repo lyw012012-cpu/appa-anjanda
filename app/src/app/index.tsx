@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Button, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -42,6 +43,7 @@ export default function HomeScreen() {
       <View style={styles.row}>
         <Button title="권한 요청" onPress={async () => setPerm(await requestPermissions())} />
         <Button title="Firebase 확인" onPress={checkFirebase} />
+        <Button title="소리 목록" onPress={() => router.push('/sounds')} />
       </View>
       <View style={styles.row}>
         <Button title="1분 뒤 알람" onPress={() => schedule(60)} />
