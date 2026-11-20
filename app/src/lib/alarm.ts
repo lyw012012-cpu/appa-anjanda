@@ -39,7 +39,9 @@ export async function scheduleTestAlarm(seconds: number): Promise<string> {
 export async function takeRingingAlarmId(): Promise<string | null> {
   const handoff = await AlarmScheduler.getPendingNativeAlarmHandoffAsync();
   const context = handoff ? null : await AlarmScheduler.getCurrentAlarmContextAsync();
-  const id = handoff?.alarmId ?? context?.id ?? null;
+  // 끝난 알람도 context가 남아 있다. 울리는 중(alerting)이거나 앱이 끈 중(held)일 때만 울리는 알람으로 본다.
+  const ringing = context?.state === 'alerting' || context?.state === 'held';
+  const id = handoff?.alarmId ?? (ringing ? context?.id : null) ?? null;
   if (id) await AlarmScheduler.clearPendingNativeAlarmHandoffAsync();
   return id;
 }
