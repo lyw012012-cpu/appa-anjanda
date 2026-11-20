@@ -342,7 +342,8 @@ def write_report(result: dict, path: Path) -> None:
         "",
         f"**`model.space` = `{result['chosen']}`** — {result['reason']}.",
         "",
-        "판단 규칙(design.md 6절 E1)은 점 추정치로 본다. 응답자 3명 × 30문항이라 95% 구간이 넓으니, 구간이 0을 넘지 못하면 차이를 주장하지 않는다.",
+        f"판단 규칙(design.md 6절 E1)은 점 추정치로 본다. 응답자 {len(result['raters'])}명 × {result['nQuestions']}문항이라 "
+        "95% 구간이 넓으니, 구간이 0을 넘지 못하면 차이를 주장하지 않는다.",
         "",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
