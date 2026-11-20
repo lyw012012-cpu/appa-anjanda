@@ -1,3 +1,5 @@
+import Constants from 'expo-constants';
+import { Linking, PermissionsAndroid } from 'react-native';
 import AlarmScheduler, { type AlarmPermissionResponse } from 'react-native-alarm-scheduler';
 import type { Alarm, AlarmId, AlarmPlan, IsoTime, OccurrenceRecord } from '@/types/contracts';
 
@@ -10,11 +12,34 @@ export function getPermissions(): Promise<Permissions> {
   return AlarmScheduler.getPermissionsAsync();
 }
 
+/** 권한이 하나라도 없으면 true. 하나라도 꺼지면 잠금 화면에서 알람 화면이 안 뜬다(I-1 확인 2, 2026-11-20) */
+export function missingPermission(p: Permissions): boolean {
+  return !p.canScheduleExactAlarms || p.canUseFullScreenIntent === false || p.canPostNotifications === false;
+}
+
+/** 빠진 권한을 하나씩 요청한다: 알림(시스템 허용 창) → 정확한 알람 → 전체 화면. 설정 화면은 한 번에 하나만 연다 */
 export async function requestPermissions(): Promise<Permissions> {
-  const p = await AlarmScheduler.requestPermissionsAsync();
+  let p = await AlarmScheduler.getPermissionsAsync();
+  if (p.canPostNotifications === false) {
+    const r = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    // 전에 거부해 허용 창이 안 뜨면 앱 알림 설정에서 직접 켜야 한다
+    if (r === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) return openNotificationSettings().then(getPermissions);
+    p = await AlarmScheduler.getPermissionsAsync();
+  }
   if (!p.canScheduleExactAlarms) await AlarmScheduler.openAlarmSettingsAsync();
   else if (p.canUseFullScreenIntent === false) await AlarmScheduler.openFullScreenIntentSettingsAsync();
   return p;
+}
+
+/** 앱 알림 설정 화면. 알림 종류(카테고리)를 모두 켜는 곳. 앱이 대신 켤 수는 없다 */
+export async function openNotificationSettings(): Promise<void> {
+  try {
+    await Linking.sendIntent('android.settings.APP_NOTIFICATION_SETTINGS', [
+      { key: 'android.provider.extra.APP_PACKAGE', value: Constants.expoConfig?.android?.package ?? '' },
+    ]);
+  } catch {
+    await Linking.openSettings(); // 제조사가 위 화면을 막으면 앱 정보 화면
+  }
 }
 
 /** 지금부터 seconds 뒤 한 번 울리는 알람. 앱이 complete할 때까지 멈추지 않는다. */
