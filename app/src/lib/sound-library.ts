@@ -1,4 +1,6 @@
 // contracts.md C8 로더 (B). 순수 함수(M2). 검사 규칙은 C2 표 하나뿐이다.
+import { soundAssets } from '@/data/sound-assets';
+import soundsJson from '@/data/sounds.json';
 import type { SoundLibrary } from '@/types/contracts';
 
 const GROUPS = ['bell', 'melody', 'beep', 'nature', 'voice', 'other'];
@@ -70,10 +72,5 @@ export function parseSoundLibrary(raw: unknown, assetIds: Iterable<string>): Sou
 
 /** sounds.json + soundAssets를 읽어 검사. 앱 시작 시 한 번 부른다 */
 export function loadSoundLibrary(): SoundLibrary {
-  // 파이프라인 산출물이 아직 없을 때(PR #33 머지 전) 이 함수를 부르는 곳만 실패하도록 지연 require
-  /* eslint-disable @typescript-eslint/no-require-imports */
-  const raw = require('@/data/sounds.json');
-  const { soundAssets } = require('@/data/sound-assets');
-  /* eslint-enable @typescript-eslint/no-require-imports */
-  return parseSoundLibrary(raw, Object.keys(soundAssets));
+  return parseSoundLibrary(soundsJson, Object.keys(soundAssets));
 }
