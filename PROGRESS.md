@@ -43,7 +43,7 @@ D8(익명 인증 유지)과 D13(Firebase 프로젝트)은 PR #10에서 끝냈다
 |---|---|---|---|---|---|
 | I-0 레포 설정과 평가표 확인 | — | chore | 누구든 | — | 🔄 기본 브랜치·심사 기준·app.json 이름·README UI 줄·이슈 라벨 ✅ (PR #6), 배점 확인·README 기술 표 남음 |
 | I-1 알람 경로 | M1 (11/19 정오) | app-alarm | A | — | 🔄 프로토타입 PR #10, 실기기 확인 1~5 남음 |
-| I-2 오프라인 파이프라인 | M2 (11/20) | ai | C | — | 🔄 실제 소리 30개로 재실행 ✅ (`app/`에 출력). 영점 갱신(0.58 → 실제 중앙값 0.66)은 목록 확정 뒤로 미룸, `npm run check` 미확인 |
+| I-2 오프라인 파이프라인 | M2 (11/20) | ai | C | — | 🔄 실제 소리 30개로 재실행 ✅ (`app/`에 출력). 짧은 소리는 YAMNet 입력만 4초 반복(2026-11-20, C3 계약 PR) → 쌍별 중앙값 0.5989로 영점 0.58과 거의 같음. 영점 갱신은 목록 확정 뒤. 이웃 0개 소리 8개라 `prefMinSim`은 B 판단 |
 | I-3 소리 목록 수집 | M1 (11/19) | ai | C | — | 🔄 30개(Pixabay 28 + 합성 2)·라이선스 표 ✅. 3계열이라 "4~6계열" 미달(자연음 없음), 계열은 YAMNet 초안이라 듣고 확인 필요, 원본 팀 드라이브 공유 남음 |
 | I-4 이벤트 기록 | M2 (11/20) | app-alarm | A | I-1 | ⬜ |
 | I-5 소리 목록 로드 | M2 (11/20) | app-recommend | B | I-2 | ⬜ |
@@ -64,7 +64,8 @@ D8(익명 인증 유지)과 D13(Firebase 프로젝트)은 PR #10에서 끝냈다
 
 | 과제 | 증거 (돌린 명령과 결과, PR) |
 |---|---|
-| I-2 실제 소리 재실행 | `cd ai && python -m src.build_sounds --csv data/sounds.csv --app ../app` → 소리 30개, C2 검사 통과, `app/assets/sounds/` 640 KB. 결론 `ai/reports/conclusion.md`: 쌍별 중앙값 0.6632(영점은 0.58 유지, 목록 확정 뒤 한 번 갱신), 2단계 후보 15~29개, `hand`가 0.05를 넘는 소리 5개뿐, R10 r = 0.21. **확인 못 한 것**: `npm run check`·번들(이 PC에 Node 없음, `sound-assets.ts`를 아직 아무도 import하지 않음), 벨소리 `pitch` 0.00 원인 |
+| I-2 실제 소리 재실행 | `cd ai && python -m src.build_sounds --csv data/sounds.csv --app ../app` → 소리 30개, C2 검사 통과, `app/assets/sounds/` 640 KB. 결론 `ai/reports/conclusion.md`: 쌍별 중앙값 0.6632(영점은 0.58 유지, 목록 확정 뒤 한 번 갱신), 2단계 후보 15~29개, `hand`가 0.05를 넘는 소리 5개뿐, R10 r = 0.21. **확인 못 한 것**: `npm run check`·번들(이 PC에 Node 없음, `sound-assets.ts`를 아직 아무도 import하지 않음), 벨소리 `pitch` 0.00 원인. `npm run check`는 A가 PR #33 리뷰에서 통과 확인 |
+| I-2 짧은 소리 반복 | PR #33 리뷰 1. 측정(원래 vs 반복): 1초 미만 14개의 YAMNet 코사인 0.52~0.98, 반복 4초 vs 10초 ≥ 0.97. `yamnet_embed`가 4초 미만 입력을 이어 붙여 반복(C3). 파이프라인 재실행 → 쌍별 중앙값 0.6632 → 0.5989, `pitch`·`harshness`·`hand`·`mel`·길이·mp3 그대로, `sim520.emb` 9개 0.05 넘게 변화, E2 순위 그대로. 영점 0.58에서 이웃 0개 소리 2 → 8. `python -m pytest tests` → 59 passed(YAMNet 포함, 새 2개). **확인 못 한 것**: `npm run check`(Node 없음. `sounds.json` 값만 바뀌고 모양은 같음) |
 | I-2 파이프라인 (합성 소리까지) | `cd ai && .venv/Scripts/python -m pytest tests` → 28 passed (YAMNet 3개 포함). `python -m src.build_sounds --synthetic` → 소리 6개, `ai/out/`에만 출력, `app/` 변화 없음. `cd app && npm run check` 통과. 결론 `ai/reports/conclusion.md`. **남은 것**: 실제 소리(I-3)로 실행해 `app/`에 출력, 영점 0.58 한 번 갱신, 팀 거슬림 평가(E6). 계약 변경(C2·C3·C8 규칙 3)은 PR #9 댓글로 요청함 (2026-11-18) |
 
 | I-3 소리 목록 (진행 중) | `cd ai && python -m src.collect_sounds` → 소리 30개(벨 13·멜로디 11·삑 6), `ai/reports/sound_credits.md` 라이선스 빈칸 0. `read_csv(data/sounds.csv)` 30줄 통과. `python -m pytest tests` → 57 passed. **확인 못 한 것**: Pixabay 라이선스·URL(팀원 제공 정보로 적음), 계열을 귀로 확인, `build_sounds` 전체 실행(I-2 재실행에서), `npm run check`(이 PC에 Node 없음, 앱 파일은 안 바꿈). 경보음·사이렌은 금지어 검사로 제외. McFarlane 2020 대입: 멜로디가 뚜렷하고 1단계(거슬림 ≤ 0.3)에 드는 소리는 벨소리 3개뿐, 520 닮음은 합성음 외 거의 0 |
