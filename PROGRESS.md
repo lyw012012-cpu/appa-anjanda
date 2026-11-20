@@ -52,7 +52,7 @@ D8(익명 인증 유지)과 D13(Firebase 프로젝트)은 PR #10에서 끝냈다
 | I-8 알람 화면 | M2 (11/20) | app-alarm | A | I-1 | 🔄 템플릿 정리 ✅ (PR #4) |
 | I-9 한 바퀴 연결 | M2 (11/20) | app-alarm | A | I-4·I-7·I-8 | ⬜ |
 | I-11 기획안·PoC 제출 | 제출 (11/22) | — | 전원 | I-9·I-13·I-14 | ⬜ |
-| I-12 세 쌍 비교 (시간이 남으면) | M3 (11/21) | ai | C (응답은 전원) | I-3 | ⬜ |
+| I-12 세 쌍 비교 (시간이 남으면) | M3 (11/21) | ai | C (응답은 전원) | I-3 | 🔄 문항 30개·듣기 페이지·채점 도구 ✅ (`ai/src/triplets.py`). 팀 3명 응답(각 15분) → `score` → 결론 남음 |
 | I-13 시뮬레이션: 무작위 대 모델 | M3 (11/21) | app-recommend | B | I-7 | ⬜ |
 | I-14 문제 근거: 설문과 문헌 | M1 배포 (11/19) → M3 정리 (11/21) | ai | C | — | ⬜ |
 
@@ -67,6 +67,7 @@ D8(익명 인증 유지)과 D13(Firebase 프로젝트)은 PR #10에서 끝냈다
 | I-2 파이프라인 (합성 소리까지) | `cd ai && .venv/Scripts/python -m pytest tests` → 28 passed (YAMNet 3개 포함). `python -m src.build_sounds --synthetic` → 소리 6개, `ai/out/`에만 출력, `app/` 변화 없음. `cd app && npm run check` 통과. 결론 `ai/reports/conclusion.md`. **남은 것**: 실제 소리(I-3)로 실행해 `app/`에 출력, 영점 0.58 한 번 갱신, 팀 거슬림 평가(E6). 계약 변경(C2·C3·C8 규칙 3)은 PR #9 댓글로 요청함 (2026-11-18) |
 
 | I-3 소리 목록 (진행 중) | `cd ai && python -m src.collect_sounds` → 소리 30개(벨 13·멜로디 11·삑 6), `ai/reports/sound_credits.md` 라이선스 빈칸 0. `read_csv(data/sounds.csv)` 30줄 통과. `python -m pytest tests` → 57 passed. **확인 못 한 것**: Pixabay 라이선스·URL(팀원 제공 정보로 적음), 계열을 귀로 확인, `build_sounds` 전체 실행(I-2 재실행에서), `npm run check`(이 PC에 Node 없음, 앱 파일은 안 바꿈). 경보음·사이렌은 금지어 검사로 제외. McFarlane 2020 대입: 멜로디가 뚜렷하고 1단계(거슬림 ≤ 0.3)에 드는 소리는 벨소리 3개뿐, 520 닮음은 합성음 외 거의 0 |
+| I-12 세 쌍 비교 (도구까지) | `cd ai && python -m src.triplets make` → `data/triplets.csv` 30문항(같은 계열 15·다른 계열 15, 모든 소리 1회 이상). `python -m src.triplets sheet` → `out/e1_listen.html` 0.8 MB(소리 이름 숨김, 답 CSV 내려받기). 세 공간 예측이 갈리는 문항: yamnet–logmel 16·yamnet–hand 11·logmel–hand 13 / 30(문항이 공간을 구별함). `python -m pytest tests -m "not yamnet"` → 69 passed(새 15개). **확인 못 한 것**: 듣기 페이지를 브라우저에서 끝까지 눌러 보기, 사람 응답(없음 → 일치율·결론 없음), `npm run check`(앱 파일 안 바꿈). `hand` 공간 정의(음높이·거슬림·520 닮음 − 0.5, L2 정규화)는 [제안] |
 
 ## 4. 막힘
 
