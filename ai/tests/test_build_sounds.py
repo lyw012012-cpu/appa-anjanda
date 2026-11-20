@@ -7,8 +7,11 @@ import soundfile as sf
 from src.build_sounds import (
     RAW0,
     RAW1,
+    SR_LO,
+    YAMNET_MIN_SEC,
     active_rms_db,
     f0_median,
+    loop_to,
     harshness,
     load_audio,
     normalize,
@@ -119,6 +122,23 @@ def test_embed_shape_norm():
 def test_embed_short_sound():
     emb, _ = yamnet_embed(prep(beep(sec=0.3))[1])
     assert emb.shape == (1024,) and abs(np.linalg.norm(emb) - 1) <= 1e-3
+
+
+def test_loop_to_repeats_short_and_keeps_long():
+    y = np.arange(5, dtype=np.float32)
+    out = loop_to(y, 10, 1.2)  # 12표본
+    assert len(out) == 12 and np.array_equal(out[:10], np.tile(y, 2))
+    long = np.ones(50, dtype=np.float32)
+    assert loop_to(long, 10, 1.2) is long
+
+
+@pytest.mark.yamnet
+def test_embed_short_sound_is_looped():
+    # 짧은 소리는 앱처럼 반복한 파형과 같은 임베딩이어야 한다(C3)
+    _, y16 = prep(beep(sec=0.3))
+    a, _ = yamnet_embed(y16)
+    b, _ = yamnet_embed(loop_to(y16, SR_LO, YAMNET_MIN_SEC))
+    assert float(a @ b) >= 0.999
 
 
 @pytest.mark.yamnet

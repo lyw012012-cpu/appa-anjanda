@@ -173,9 +173,21 @@ def _yamnet():
     return model, names
 
 
+YAMNET_MIN_SEC = 4.0  # 이보다 짧으면 반복해 늘린다(C3). 반복 4초와 10초의 임베딩 코사인은 0.97 이상
+
+
+def loop_to(y: np.ndarray, sr: int, sec: float) -> np.ndarray:
+    """앱처럼 이어 붙여 반복해 sec초로 만든다. 이미 길면 그대로."""
+    n = int(sec * sr)
+    if len(y) >= n:
+        return y
+    return np.tile(y, -(-n // len(y)))[:n]
+
+
 def yamnet_embed(y16: np.ndarray) -> tuple[np.ndarray, list[str]]:
+    """앱은 단계 동안 소리를 반복 재생한다. YAMNet은 0.96초 창이라 짧은 소리를 그대로 넣으면 무음을 채워 본다(C3)."""
     model, names = _yamnet()
-    scores, emb, _ = model(y16.astype(np.float32))
+    scores, emb, _ = model(loop_to(y16, SR_LO, YAMNET_MIN_SEC).astype(np.float32))
     v = emb.numpy().mean(axis=0)
     top = np.argsort(scores.numpy().mean(axis=0))[::-1][:3]
     return v / np.linalg.norm(v), [names[i] for i in top]
