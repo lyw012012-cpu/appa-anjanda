@@ -111,9 +111,23 @@ def test_human_leave_one_out():
 
 
 def test_decide_rule():
-    assert decide({"yamnet": 0.6, "logmel": 0.69, "hand": 0.5})[0] == "yamnet"
-    assert decide({"yamnet": 0.6, "logmel": 0.6 + SWITCH_MARGIN, "hand": 0.5})[0] == "logmel"
-    assert decide({"yamnet": 0.7, "logmel": 0.5, "hand": 0.9})[0] == "hand"
+    sure = {"logmel": (0.02, 0.3), "hand": (0.02, 0.3)}
+    assert decide({"yamnet": 0.6, "logmel": 0.69, "hand": 0.5}, sure)[0] == "yamnet"  # 10%p 미만
+    assert decide({"yamnet": 0.6, "logmel": 0.6 + SWITCH_MARGIN, "hand": 0.5}, sure)[0] == "logmel"
+
+
+def test_decide_needs_interval_above_zero():
+    # 점 추정치는 13%p 높지만 구간이 0을 포함하면 바꾸지 않는다(PR #34 리뷰 1)
+    wide = {"logmel": (-0.2, 0.47), "hand": (-0.3, 0.3)}
+    chosen, reason = decide({"yamnet": 0.467, "logmel": 0.6, "hand": 0.467}, wide)
+    assert chosen == "yamnet"
+    assert "구간" in reason
+
+
+def test_decide_never_picks_hand():
+    # hand는 계약에 정의가 없어 기록용(PR #34 리뷰 2)
+    sure = {"logmel": (-0.3, 0.0), "hand": (0.1, 0.4)}
+    assert decide({"yamnet": 0.5, "logmel": 0.4, "hand": 0.9}, sure)[0] == "yamnet"
 
 
 def test_score_end_to_end():
@@ -130,6 +144,37 @@ def test_score_end_to_end():
     assert res["human"] == 1.0
     assert res["chosen"] == "logmel"
     assert res["byKind"]["같은 계열"]["n"] == 2
+
+
+def test_score_decides_on_within_group_only_by_default():
+    # 같은 계열 문항(q01)은 logmel만 맞고, 다른 계열 문항(q02·q03)은 yamnet만 맞는다
+    tri = [
+        {"qid": "q01", "anchor": "x", "a": "near", "b": "far"},
+        {"qid": "q02", "anchor": "x", "a": "near", "b": "other"},
+        {"qid": "q03", "anchor": "x", "a": "other", "b": "near"},
+    ]
+    groups = {"x": "bell", "near": "bell", "far": "bell", "other": "beep"}
+    yam = {"x": _unit([1, 0, 0]), "near": _unit([0, 1, 0]), "far": _unit([1, 0.1, 0]), "other": _unit([0, 0, 1])}
+    mel = {"x": _unit([1, 0, 0]), "near": _unit([1, 0.1, 0]), "far": _unit([0, 1, 0]), "other": _unit([1, 0.1, 0.1])}
+    vectors = {"yamnet": yam, "logmel": mel, "hand": yam}
+    answers = [{"rater": "r1", "qid": q, "choice": c} for q, c in (("q01", "a"), ("q02", "b"), ("q03", "a"))]
+
+    within = score(tri, answers, vectors, groups)
+    assert within["nDecide"] == 1
+    assert within["decideAccuracy"]["logmel"] == 1.0 and within["decideAccuracy"]["yamnet"] == 0.0
+    assert within["chosen"] == "logmel"
+
+    everything = score(tri, answers, vectors, groups, decide_all=True)
+    assert everything["nDecide"] == 3
+    assert everything["chosen"] == "yamnet"  # 다른 계열 문항이 섞이면 결론이 뒤집힌다
+
+
+def test_score_needs_within_group_answers():
+    tri = [{"qid": "q01", "anchor": "x", "a": "near", "b": "other"}]
+    v = {"x": _unit([1, 0]), "near": _unit([1, 0.1]), "other": _unit([0, 1])}
+    with pytest.raises(ValueError, match="같은 계열"):
+        score(tri, [{"rater": "r1", "qid": "q01", "choice": "a"}], {s: v for s in ("yamnet", "logmel", "hand")},
+              {"x": "bell", "near": "bell", "other": "beep"})
 
 
 # ── 듣기 페이지 ──

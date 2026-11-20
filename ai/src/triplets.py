@@ -40,6 +40,8 @@ N_WITHIN = 15  # 같은 계열 안 문항
 N_CROSS = 15  # A·B가 다른 계열인 문항
 SEED = 12
 SPACES = ("yamnet", "logmel", "hand")
+# 판단 후보. hand는 계약(C2)에 정의가 없고 ai-design 12절은 삭제를 제안해, 이겨도 앱·파이프라인에 구현이 없다 → 기록용(PR #34 리뷰)
+DECIDE_SPACES = ("logmel",)
 SWITCH_MARGIN = 0.10  # 다른 공간이 이만큼 이상 높아야 바꾼다(E1 판단 규칙)
 TIE_EPS = 1e-6  # 두 코사인 차이가 이보다 작으면 공간이 판단 못 함(0.5점)
 BOOTSTRAP = 2000
@@ -276,35 +278,60 @@ def bootstrap_diff(
     return float(lo), float(hi)
 
 
-def decide(acc: dict[str, float]) -> tuple[str, str]:
-    """E1 판단 규칙. (고른 공간, 이유)."""
-    base = acc["yamnet"]
-    best = max((s for s in acc if s != "yamnet"), key=lambda s: acc[s])
-    gap = acc[best] - base
-    if gap >= SWITCH_MARGIN - 1e-9:
-        return best, f"{best}이 YAMNet보다 {gap * 100:.1f}%p 높아 기준(10%p) 이상"
-    return "yamnet", f"가장 높은 다른 공간({best})과 차이 {gap * 100:+.1f}%p로 기준(10%p) 미만 → YAMNet 유지"
+def decide(acc: dict[str, float], ci: dict[str, tuple[float, float]]) -> tuple[str, str]:
+    """E1 판단 규칙. (고른 공간, 이유).
+
+    DECIDE_SPACES 중 하나가 YAMNet보다 10%p 이상 높고, 그 차이의 95% 구간 아래 끝도 0보다 클 때만 바꾼다.
+    점 추정치만 보면 3명 × 30문항에서는 우연한 10%p 차이로 공간이 바뀔 수 있다(PR #34 리뷰).
+    """
+    best = max(DECIDE_SPACES, key=lambda s: acc[s])
+    gap = acc[best] - acc["yamnet"]
+    lo = ci[best][0]
+    if gap < SWITCH_MARGIN - 1e-9:
+        return "yamnet", f"{best}과 차이 {gap * 100:+.1f}%p로 기준(10%p) 미만 → YAMNet 유지"
+    if lo <= 0:
+        return "yamnet", f"{best}이 {gap * 100:+.1f}%p 높지만 95% 구간 아래 끝이 {lo * 100:+.1f}%p로 0 이하 → 우연일 수 있어 YAMNet 유지"
+    return best, f"{best}이 YAMNet보다 {gap * 100:.1f}%p 높고 95% 구간 아래 끝도 {lo * 100:+.1f}%p로 0보다 큼"
 
 
-def score(triplets: list[dict], answers: list[dict], vectors: dict[str, dict[str, np.ndarray]], group_of: dict[str, str]) -> dict:
+def score(
+    triplets: list[dict],
+    answers: list[dict],
+    vectors: dict[str, dict[str, np.ndarray]],
+    group_of: dict[str, str],
+    decide_all: bool = False,
+) -> dict:
+    """decide_all=False면 같은 계열 문항만으로 판단한다.
+
+    계열(`group`)이 YAMNet 결과를 보고 붙인 초안이면, A·B를 계열로 가른 다른 계열 문항은
+    YAMNet이 나눈 기준으로 YAMNet을 채점하는 셈이라 YAMNet에 유리하다. 계열을 사람이 듣고 확인한 뒤에만 전체로 판단한다.
+    """
     qids = [t["qid"] for t in triplets if any(r["qid"] == t["qid"] for r in answers)]
     kinds = {t["qid"]: kind_of(t, group_of) for t in triplets}
+    decide_qids = qids if decide_all else [q for q in qids if kinds[q] == "같은 계열"]
+    if not decide_qids:
+        raise ValueError("판단에 쓸 같은 계열 문항의 답이 없음")
     by_space = {s: agreement_by_question({t["qid"]: predict(vectors[s], t) for t in triplets}, answers) for s in SPACES}
     human = human_by_question(answers)
     acc = {s: _mean(by_space[s], qids) for s in SPACES}
-    chosen, reason = decide(acc)
+    decide_acc = {s: _mean(by_space[s], decide_qids) for s in SPACES}
+    diff_ci = {s: bootstrap_diff(by_space[s], by_space["yamnet"], decide_qids) for s in SPACES if s != "yamnet"}
+    chosen, reason = decide(decide_acc, diff_ci)
     return {
         "raters": sorted({r["rater"] for r in answers}),
         "nAnswers": len(answers),
         "nQuestions": len(qids),
+        "decideOn": "전체" if decide_all else "같은 계열",
+        "nDecide": len(decide_qids),
         "accuracy": acc,
+        "decideAccuracy": decide_acc,
         "byKind": {
             k: {s: _mean(by_space[s], [q for q in qids if kinds[q] == k]) for s in SPACES}
             | {"human": _mean(human, [q for q in qids if kinds[q] == k]), "n": sum(kinds[q] == k for q in qids)}
             for k in ("같은 계열", "다른 계열")
         },
         "human": _mean(human, qids),
-        "diffCI": {s: bootstrap_diff(by_space[s], by_space["yamnet"], qids) for s in SPACES if s != "yamnet"},
+        "diffCI": diff_ci,
         "chosen": chosen,
         "reason": reason,
     }
@@ -313,6 +340,8 @@ def score(triplets: list[dict], answers: list[dict], vectors: dict[str, dict[str
 def write_report(result: dict, path: Path) -> None:
     pct = lambda v: "—" if v != v else f"{v * 100:.1f}%"  # noqa: E731  nan이면 —
     acc = result["accuracy"]
+    dacc = result["decideAccuracy"]
+    on = result["decideOn"]
     lines = [
         "# E1 세 쌍 비교 결과 (I-12)",
         "",
@@ -325,25 +354,35 @@ def write_report(result: dict, path: Path) -> None:
         "",
         "사람 답과 공간의 예측(기준과 코사인이 더 큰 쪽)이 맞은 비율. 공간이 판단 못 하면(두 코사인이 같으면) 0.5점.",
         "",
-        "| 공간 | 전체 | 같은 계열 | 다른 계열 | YAMNet 대비 (95% 구간) |",
+        f"| 공간 | 전체 | 같은 계열 | 다른 계열 (참고) | YAMNet 대비, {on} 문항 (95% 구간) |",
         "|---|---|---|---|---|",
     ]
     bk = result["byKind"]
     for s in SPACES:
         ci = result["diffCI"].get(s)
-        diff = "기준" if ci is None else f"{(acc[s] - acc['yamnet']) * 100:+.1f}%p ({ci[0] * 100:+.1f} ~ {ci[1] * 100:+.1f})"
-        lines.append(f"| {s} | {pct(acc[s])} | {pct(bk['같은 계열'][s])} | {pct(bk['다른 계열'][s])} | {diff} |")
+        diff = "기준" if ci is None else f"{(dacc[s] - dacc['yamnet']) * 100:+.1f}%p ({ci[0] * 100:+.1f} ~ {ci[1] * 100:+.1f})"
+        name = s if s == "yamnet" or s in DECIDE_SPACES else f"{s} (기록용, 판단 제외)"
+        lines.append(f"| {name} | {pct(acc[s])} | {pct(bk['같은 계열'][s])} | {pct(bk['다른 계열'][s])} | {diff} |")
     lines += [
         f"| 사람끼리 | {pct(result['human'])} | {pct(bk['같은 계열']['human'])} | {pct(bk['다른 계열']['human'])} | 각 답을 나머지 사람의 다수결과 비교. 공간이 넘기 어려운 천장 |",
         "",
         f"문항 수: 같은 계열 {bk['같은 계열']['n']}개, 다른 계열 {bk['다른 계열']['n']}개.",
         "",
+        "**다른 계열 문항은 YAMNet에 유리할 수 있다.** 계열(`group`)이 YAMNet 결과를 보고 붙인 초안이라, "
+        "A·B를 계열로 가른 문항은 YAMNet이 나눈 기준으로 YAMNet을 채점하는 셈이다. 그래서 계열을 사람이 듣고 "
+        "확인하기 전에는 같은 계열 문항만으로 판단한다(확인한 뒤에는 `score --all`).",
+        "",
         "## 판단",
+        "",
+        f"판단에 쓴 문항: **{on} {result['nDecide']}개**.",
         "",
         f"**`model.space` = `{result['chosen']}`** — {result['reason']}.",
         "",
-        f"판단 규칙(design.md 6절 E1)은 점 추정치로 본다. 응답자 {len(result['raters'])}명 × {result['nQuestions']}문항이라 "
-        "95% 구간이 넓으니, 구간이 0을 넘지 못하면 차이를 주장하지 않는다.",
+        f"규칙: {', '.join(DECIDE_SPACES)}이 YAMNet보다 10%p 이상 높고(design.md 6절 E1) 그 차이의 95% 구간 아래 끝도 0보다 클 때만 바꾼다. "
+        f"응답자 {len(result['raters'])}명 × {result['nDecide']}문항이라 구간이 넓다.",
+        "",
+        "한계: 95% 구간은 문항만 다시 뽑아 계산해 응답자 사이 차이가 빠져 있다. 실제 불확실성은 이보다 크다. "
+        "`hand`는 계약에 정의가 없어 기록용으로만 보여 준다.",
         "",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -402,7 +441,7 @@ button.choice.picked { background:var(--chosen); border-color:var(--accent); }
       <button class="play" data-k="a">▶ A</button>
       <button class="play" data-k="b">▶ B</button>
     </div>
-    <p style="margin-top:12px">A와 B를 모두 들어야 고를 수 있습니다.</p>
+    <p style="margin-top:12px">세 소리를 <b>끝까지</b> 들은 뒤 고르세요. A와 B를 모두 재생해야 버튼이 켜집니다.</p>
     <div class="row">
       <button class="choice" data-c="a" disabled>A가 X와 더 비슷</button>
       <button class="choice" data-c="b" disabled>B가 X와 더 비슷</button>
@@ -423,10 +462,21 @@ button.choice.picked { background:var(--chosen); border-color:var(--accent); }
 <script>
 const QUESTIONS = __QUESTIONS__;
 const AUDIO = __AUDIO__;
-const KEY = "e1-triplets-v1";
+const KEY = "e1-triplets-v2";
 let state = { rater: "", i: 0, answers: {} };
 let heard = {};
+let view = [];  // 이 응답자에게 보여 줄 순서: { q, swap }
 const player = new Audio();
+
+// 응답자 번호를 시드로 문항 순서와 A·B 위치를 섞는다. 답은 원래 a·b로 저장하므로 채점은 그대로다
+function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function buildView(rater) {
+  const r = rng(Number(rater.slice(1)) * 7919);
+  const order = QUESTIONS.map((q) => ({ q, swap: r() < 0.5 }));
+  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  return order;
+}
+const shown = (v, k) => (k === "anchor" || !v.swap ? k : k === "a" ? "b" : "a");  // 화면의 A·B → 원래 a·b
 
 function load() { try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.answers) state = s; } catch (e) {} }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
@@ -437,23 +487,23 @@ function show(id) { for (const x of ["start", "quiz", "done"]) $(x).classList.to
 function render() {
   if (state.i >= QUESTIONS.length) { show("done"); return; }
   show("quiz");
-  const q = QUESTIONS[state.i];
+  const v = view[state.i];
   heard = {};
   $("prog").textContent = `${state.i + 1} / ${QUESTIONS.length}  ·  ${state.rater}`;
   $("barfill").style.width = `${(Object.keys(state.answers).length / QUESTIONS.length) * 100}%`;
   document.querySelectorAll(".play").forEach((b) => b.classList.remove("done"));
-  const picked = state.answers[q.qid];
+  const picked = state.answers[v.q.qid];
   document.querySelectorAll(".choice").forEach((b) => {
-    b.classList.toggle("picked", b.dataset.c === picked);
+    b.classList.toggle("picked", picked !== undefined && shown(v, b.dataset.c) === picked);
     b.disabled = !picked;
   });
   $("prev").disabled = state.i === 0;
 }
 
 document.querySelectorAll(".play").forEach((b) => b.addEventListener("click", () => {
-  const q = QUESTIONS[state.i];
+  const v = view[state.i];
   player.pause();
-  player.src = AUDIO[q[b.dataset.k]];
+  player.src = AUDIO[v.q[shown(v, b.dataset.k)]];
   player.currentTime = 0;
   player.play();
   heard[b.dataset.k] = true;
@@ -463,7 +513,8 @@ document.querySelectorAll(".play").forEach((b) => b.addEventListener("click", ()
 
 document.querySelectorAll(".choice").forEach((b) => b.addEventListener("click", () => {
   player.pause();
-  state.answers[QUESTIONS[state.i].qid] = b.dataset.c;
+  const v = view[state.i];
+  state.answers[v.q.qid] = shown(v, b.dataset.c);
   state.i += 1;
   save();
   render();
@@ -475,6 +526,7 @@ $("rater").addEventListener("change", (e) => { $("go").disabled = !e.target.valu
 $("go").addEventListener("click", () => {
   const r = $("rater").value;
   if (state.rater !== r) state = { rater: r, i: 0, answers: {} };
+  view = buildView(r);
   save();
   render();
 });
@@ -515,6 +567,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("command", choices=("make", "sheet", "score"))
     p.add_argument("--data", type=Path, default=AI_DIR / "data", help="sounds.csv·sounds/·triplets.csv가 있는 폴더")
     p.add_argument("--force", action="store_true", help="make: 이미 있는 triplets.csv를 덮어쓴다")
+    p.add_argument(
+        "--all", action="store_true", help="score: 다른 계열 문항까지 판단에 쓴다. 계열을 사람이 듣고 확인한 뒤에만"
+    )
     args = p.parse_args(argv)
     data = args.data
     tri_path = data / "triplets.csv"
@@ -551,11 +606,14 @@ def main(argv: list[str] | None = None) -> int:
         answers = [r for f in files for r in _read(f, ANSWER_COLUMNS)]
         validate_answers(answers, triplets)
         vectors = space_vectors(rows, data / "sounds", used)
-        result = score(triplets, answers, vectors, {r["id"]: r["group"] for r in rows})
+        result = score(triplets, answers, vectors, {r["id"]: r["group"] for r in rows}, decide_all=args.all)
         out = AI_DIR / "reports" / "e1.md"
         write_report(result, out)
-        acc = ", ".join(f"{s} {result['accuracy'][s] * 100:.1f}%" for s in SPACES)
-        print(f"답 {result['nAnswers']}개({', '.join(f.name for f in files)}) · {acc} → {result['chosen']} · {out}")
+        acc = ", ".join(f"{s} {result['decideAccuracy'][s] * 100:.1f}%" for s in SPACES)
+        print(
+            f"답 {result['nAnswers']}개({', '.join(f.name for f in files)}) · "
+            f"판단({result['decideOn']} {result['nDecide']}문항) {acc} → {result['chosen']} · {out}"
+        )
         return 0
     except (ValueError, FileNotFoundError) as e:
         print(f"실패 — {e}", file=sys.stderr)
