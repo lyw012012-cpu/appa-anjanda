@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { getPermissions, requestPermissions, scheduleTestAlarm, type Permissions } from '@/lib/alarm';
+import {
+  getPermissions,
+  missingPermission,
+  openNotificationSettings,
+  requestPermissions,
+  scheduleTestAlarm,
+  type Permissions,
+} from '@/lib/alarm';
 import { ensureUid, isFirebaseConfigured } from '@/lib/firebase';
 
 // 프로토타입(I-1) 첫 화면: 권한 확인, "N분 뒤 알람", Firebase 연결 확인.
@@ -10,8 +17,14 @@ export default function HomeScreen() {
   const [log, setLog] = useState<string[]>([]);
   const add = (line: string) => setLog((l) => [`${new Date().toLocaleTimeString()} ${line}`, ...l]);
 
+  // 첫 실행 때 빠진 권한을 바로 요청하고, 설정 화면에서 돌아올 때마다 다시 읽는다.
+  // ponytail: 매 실행마다 요청함(거부하면 매번 뜸). 정식 앱은 안내 화면(I-8)에서 한 번만
   useEffect(() => {
-    getPermissions().then(setPerm).catch((e) => add(`권한 확인 실패: ${e}`));
+    getPermissions()
+      .then(async (p) => setPerm(missingPermission(p) ? await requestPermissions() : p))
+      .catch((e) => add(`권한 확인 실패: ${e}`));
+    const sub = AppState.addEventListener('change', (s) => s === 'active' && getPermissions().then(setPerm));
+    return () => sub.remove();
   }, []);
 
   const schedule = async (sec: number) => {
@@ -41,6 +54,7 @@ export default function HomeScreen() {
       </Text>
       <View style={styles.row}>
         <Button title="권한 요청" onPress={async () => setPerm(await requestPermissions())} />
+        <Button title="알림 설정" onPress={openNotificationSettings} />
         <Button title="Firebase 확인" onPress={checkFirebase} />
       </View>
       <View style={styles.row}>
