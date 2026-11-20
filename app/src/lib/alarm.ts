@@ -1,3 +1,4 @@
+import { requireOptionalNativeModule } from 'expo';
 import Constants from 'expo-constants';
 import { Linking, PermissionsAndroid } from 'react-native';
 import AlarmScheduler, { type AlarmPermissionResponse } from 'react-native-alarm-scheduler';
@@ -78,6 +79,29 @@ export async function holdNativeRing(alarmId: string, seconds: number): Promise<
 
 export function releaseNativeRing(alarmId: string): Promise<void> {
   return AlarmScheduler.releaseRingHoldAsync(alarmId);
+}
+
+// 앱 소리는 미디어 볼륨으로 나와서, 미디어 볼륨 0이면 hold 동안 무음이었다(I-1 확인 4). 울리는 동안만 바닥값까지 올린다.
+// 모듈은 modules/media-volume(네이티브). 이 모듈이 없는 옛 빌드·Expo Go에서는 아무것도 안 한다.
+const MediaVolume = requireOptionalNativeModule<{ raiseTo(minFraction: number): number; restore(index: number): void }>(
+  'MediaVolume',
+);
+const MEDIA_VOLUME_FLOOR = 0.5; // 최대의 절반. 단계 음량(0.4·0.7)은 이 위에서 곱해진다
+let savedMediaVolume: number | null = null;
+
+/** 미디어 볼륨이 바닥값보다 낮으면 올린다. 여러 번 불러도 처음 값만 기억한다(잠결에 볼륨을 내리면 다시 올림) */
+export function raiseMediaVolume(): 'raised' | 'enough' | 'unavailable' {
+  if (!MediaVolume) return 'unavailable';
+  const prev = MediaVolume.raiseTo(MEDIA_VOLUME_FLOOR);
+  if (prev < 0) return 'enough';
+  if (savedMediaVolume === null) savedMediaVolume = prev;
+  return 'raised';
+}
+
+/** 올렸던 미디어 볼륨을 원래대로. ponytail: 울리는 중에 앱이 죽으면 올린 채로 남는다 */
+export function restoreMediaVolume(): void {
+  if (savedMediaVolume !== null) MediaVolume?.restore(savedMediaVolume);
+  savedMediaVolume = null;
 }
 
 /** 알람을 끝낸다. recheckSec이 있으면 그만큼 뒤에 재확인 알람(followUp)을 건다. */
