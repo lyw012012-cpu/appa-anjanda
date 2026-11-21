@@ -145,12 +145,12 @@ export function fitBandit(events: readonly AlarmEvent[], config: RecommendConfig
 }
 
 // ---- 난수: 같은 seed면 같은 수열 (C8 규칙 6·15). Math.random 금지(M2) ----
-function fnv1a(s: string): number {
+export function fnv1a(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
   return h >>> 0;
 }
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let a = seed;
   return () => {
     a = (a + 0x6d2b79f5) | 0;
