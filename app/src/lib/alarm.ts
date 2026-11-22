@@ -90,9 +90,10 @@ const MEDIA_VOLUME_FLOOR = 0.5; // 최대의 절반. 단계 음량(0.4·0.7)은 
 let savedMediaVolume: number | null = null;
 
 /** 미디어 볼륨이 바닥값보다 낮으면 올린다. 여러 번 불러도 처음 값만 기억한다(잠결에 볼륨을 내리면 다시 올림) */
-export function raiseMediaVolume(): 'raised' | 'enough' | 'unavailable' {
+export function raiseMediaVolume(): 'raised' | 'enough' | 'failed' | 'unavailable' {
   if (!MediaVolume) return 'unavailable';
   const prev = MediaVolume.raiseTo(MEDIA_VOLUME_FLOOR);
+  if (prev === -2) return 'failed';
   if (prev < 0) return 'enough';
   if (savedMediaVolume === null) savedMediaVolume = prev;
   return 'raised';

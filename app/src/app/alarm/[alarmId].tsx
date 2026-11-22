@@ -37,15 +37,17 @@ export default function AlarmScreen() {
 
   useEffect(() => {
     let renew: ReturnType<typeof setInterval> | undefined;
+    let cancelled = false; // await 사이에 화면이 닫히면 뒤에 만든 interval·재생이 남지 않게
     (async () => {
       const volume = raiseMediaVolume(); // hold 전에: 미디어 볼륨 0이면 앱 소리가 무음(I-1 확인 4)
       const held = await holdNativeRing(alarmId, HOLD_SEC);
+      if (cancelled) return;
       setInfo(`${held ? '기본 알람음 hold 중' : '기본 알람음 hold 실패(울리는 중이 아님)'} · 미디어 볼륨 ${volume}`);
       renew = setInterval(() => {
         raiseMediaVolume(); // 잠결에 볼륨을 내렸으면 다시 올린다
         holdNativeRing(alarmId, HOLD_SEC);
       }, HOLD_RENEW_MS);
-      seq.current = await playSequence(STEPS, (i) => {
+      const handle = await playSequence(STEPS, (i) => {
         stepStartedAt.current = Date.now();
         setStep(i);
         if (i >= STEPS.length) {
@@ -55,8 +57,11 @@ export default function AlarmScreen() {
           setInfo('앱 소리 끝 → 기본 알람음');
         }
       });
+      if (cancelled) handle.stop();
+      else seq.current = handle;
     })();
     return () => {
+      cancelled = true;
       clearInterval(renew);
       seq.current?.stop();
       restoreMediaVolume();
