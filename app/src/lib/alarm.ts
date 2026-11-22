@@ -160,9 +160,10 @@ export async function scheduleOccurrence(alarm: Alarm, plan: AlarmPlan, at: IsoT
   if (missing) throw new AlarmError('sound_missing', missing.soundId);
   try {
     // 울림마다 라이브러리 ID를 새로 쓴다(같은 ID면 지금 울리는 알람·재확인까지 지워진다). 우리 ID는 metadata.alarmId
+    // 지금 울리는 것·스누즈 대기(deferred)·재확인(followUp)은 남긴다: 다음 울림 예약과 따로 돈다
     const ringing = (await AlarmScheduler.getCurrentAlarmContextAsync())?.id;
     for (const a of await AlarmScheduler.getScheduledAlarmsAsync())
-      if (a.metadata?.alarmId === alarm.id && a.id !== ringing && a.relationship !== 'followUp')
+      if (a.metadata?.alarmId === alarm.id && a.id !== ringing && (a.relationship ?? 'primary') === 'primary')
         await AlarmScheduler.cancelAlarmAsync(a.id);
     const ms = Date.parse(at);
     const d = new Date(ms);

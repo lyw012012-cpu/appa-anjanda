@@ -88,12 +88,15 @@ function fallbackPlan(lib: SoundLibrary, seed: string): AlarmPlan {
   return {
     stages: [stage(1, first), stage(2, second), stage(3, third)],
     weights: [0, 0, 0, 0, 0],
-    reason: '추천 모듈 준비 중: 최근에 안 쓴 소리와 1단계와 다른 소리로 골랐어요',
+    reason: `${FALLBACK_REASON}: 최근에 안 쓴 소리와 1단계와 다른 소리로 골랐어요`,
     fallback: [],
     seed,
     configVersion: recommendConfig.configVersion,
   };
 }
+
+/** 임시 계획 표식. 분석에서 `plan.reason.startsWith(FALLBACK_REASON)`으로 추천 기록과 나눈다 */
+export const FALLBACK_REASON = '추천 모듈 준비 중';
 
 function makePlan(alarm: Alarm, at: string): AlarmPlan {
   const lib = getLibrary();
@@ -107,7 +110,8 @@ function makePlan(alarm: Alarm, at: string): AlarmPlan {
       now: toIsoLocal(Date.now()),
       seed,
     });
-  } catch {
+  } catch (e) {
+    console.warn('planAlarm 실패, 임시 계획 사용', e); // planAlarm이 있으면 버그라는 뜻
     return fallbackPlan(lib, seed);
   }
 }
@@ -126,6 +130,17 @@ export async function snooze(alarmId: AlarmId, s: SnoozeState): Promise<void> {
   await snoozeAlarm(alarmConfig.snoozeMin * 60);
 }
 
+/** "다음부터 이 소리 빼기" 뒤: 대기 중 계획에서 뺀 소리가 든 단계만 새 계획의 같은 단계로 바꾼다(스누즈로 다시 울릴 때 안 나오게) */
+export function dropExcludedFromPlan(alarmId: AlarmId, occurrenceAt: string): void {
+  const plan = usePendingStore.getState().plans[alarmId];
+  const excluded = getSettings().excluded;
+  if (!plan || !plan.stages.some((s) => excluded.includes(s.soundId))) return;
+  const fresh = makePlan({ id: alarmId, time: '00:00', enabled: true }, occurrenceAt);
+  // ponytail: 바꾼 소리가 남은 단계와 겹칠 수 있다(같은 소리가 두 단계). 드물어서 그대로 둔다
+  const stages = plan.stages.map((s, i) => (excluded.includes(s.soundId) ? fresh.stages[i] : s)) as AlarmPlan['stages'];
+  usePendingStore.setState((p) => ({ plans: { ...p.plans, [alarmId]: { ...plan, stages } } }));
+}
+
 export function takeSnooze(alarmId: AlarmId): SnoozeState | null {
   const s = usePendingStore.getState().snoozes[alarmId] ?? null;
   usePendingStore.setState((p) => {
@@ -135,6 +150,11 @@ export function takeSnooze(alarmId: AlarmId): SnoozeState | null {
   return s;
 }
 
+function matchFeatures(plan: AlarmPlan | null, p: PlayedStage): Features | null {
+  const s = p.stage === 'safety' ? undefined : plan?.stages[p.stage - 1];
+  return s && s.soundId === p.soundId ? s.features : null;
+}
+
 /** 알람 한 번 끝: 저장 → 업로드 시작 → 다음 계획 → 재예약. 끈 경우 화면이 상태 질문을 띄운다 */
 export async function handleOutcome(r: OccurrenceRecord): Promise<void> {
   const plan = usePendingStore.getState().plans[r.alarmId] ?? null;
@@ -142,7 +162,8 @@ export async function handleOutcome(r: OccurrenceRecord): Promise<void> {
     ...r,
     played: r.played.map((p) => ({
       ...p,
-      features: p.stage === 'safety' ? null : (plan?.stages[p.stage - 1].features ?? null),
+      // 같은 단계·같은 소리일 때만 복사(울리는 중에 "이 소리 빼기"로 단계 소리가 바뀌었으면 null)
+      features: p.stage === 'safety' ? null : matchFeatures(plan, p),
     })),
     schemaVersion: 2,
     eventId: eventIdOf(r.alarmId, r.occurrenceAt),
@@ -186,10 +207,11 @@ export function handleRecheck(eventId: string, result: 'responded' | 'no_respons
 /** 알람 추가·켜기·시각 변경·설정 변경 시: 계획 → 예약 */
 export async function armAlarm(alarm: Alarm): Promise<void> {
   if (!alarm.enabled) {
-    await cancelAlarm(alarm.id);
+    await cancelAlarm(alarm.id); // 스누즈 대기·재확인까지 모두
     usePendingStore.setState((s) => {
       const { [alarm.id]: _, ...plans } = s.plans;
-      return { plans };
+      const { [alarm.id]: __, ...snoozes } = s.snoozes;
+      return { plans, snoozes };
     });
     return;
   }

@@ -15,6 +15,7 @@ import {
 } from '@/lib/alarm';
 import { playSequence, type SequenceHandle, type Step } from '@/lib/sequence-player';
 import {
+  dropExcludedFromPlan,
   eventIdOf,
   getLibrary,
   handleOutcome,
@@ -55,6 +56,7 @@ export default function AlarmScreen() {
   const played = useRef<PlayedStage[]>([]); // 끝난 구간(C6). 스누즈 전 구간 포함
   const snoozeCount = useRef(0);
   const finished = useRef(false);
+  const phaseRef = useRef<Phase>('loading'); // 비동기 catch에서 읽는 울림 종류
   const giveUpTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const currentIndex = () => base.current + (seq.current?.currentStep() ?? 0);
@@ -100,8 +102,10 @@ export default function AlarmScreen() {
 
   useEffect(() => {
     let renew: ReturnType<typeof setInterval> | undefined;
+    let cancelled = false; // await 사이에 화면이 닫히면 뒤에 만든 interval·재생·타이머가 남지 않게
     (async () => {
       const r = await ringingInfo(nativeId);
+      if (cancelled) return;
       const plan = planForRinging(r.alarmId);
       const titleOf = (id: string) => getLibrary().sounds.find((s) => s.id === id)?.title ?? id;
       const toStep = (soundId: string, volume: number, seconds: number): PlannedStep => ({
@@ -128,16 +132,19 @@ export default function AlarmScreen() {
           : plan.stages.map((s) => toStep(s.soundId, s.volume, alarmConfig.stageSec));
       setView(steps.current);
       setStep(base.current);
-      setPhase(r.kind === 'recheck' ? 'recheck' : 'ringing');
+      stepStartedAt.current = Date.now(); // 첫 단계 콜백 전에 끄기를 눌러도 1970년이 기록되지 않게
+      phaseRef.current = r.kind === 'recheck' ? 'recheck' : 'ringing';
+      setPhase(phaseRef.current);
 
       const volume = raiseMediaVolume(); // hold 전에: 미디어 볼륨 0이면 앱 소리가 무음(I-1 확인 4)
       const held = await holdNativeRing(nativeId, HOLD_SEC);
+      if (cancelled) return;
       setInfo(`${held ? '기본 알람음 hold 중' : '기본 알람음 hold 실패'} · 미디어 볼륨 ${volume}\n${plan.reason}`);
       renew = setInterval(() => {
         raiseMediaVolume(); // 잠결에 볼륨을 내렸으면 다시 올린다
         holdNativeRing(nativeId, HOLD_SEC);
       }, HOLD_RENEW_MS);
-      seq.current = await playSequence(steps.current.slice(base.current), (j) => {
+      const handle = await playSequence(steps.current.slice(base.current), (j) => {
         const i = base.current + j;
         if (j > 0 && r.kind !== 'recheck') closeStage(i - 1, 'next');
         stepStartedAt.current = Date.now();
@@ -156,8 +163,24 @@ export default function AlarmScreen() {
           setInfo('앱 소리 끝 → 기본 알람음');
         }
       });
-    })();
+      if (cancelled) handle.stop();
+      else seq.current = handle;
+    })().catch((e) => {
+      // 소리 로드 실패 등: 앱 소리를 포기하고 기본 알람음(안전장치)으로. 알람은 실패해도 울려야 한다
+      clearInterval(renew);
+      restoreMediaVolume();
+      releaseNativeRing(nativeId);
+      if (cancelled) return;
+      setInfo(`앱 소리 실패 → 기본 알람음: ${e}`);
+      // 울림을 모르거나 재확인이면 끄기만(재확인은 gave_up 기록 대상이 아님)
+      if (!ring.current || finished.current || phaseRef.current === 'recheck') return setPhase('recheck_missed');
+      setStep(steps.current.length);
+      stepStartedAt.current = Date.now();
+      setPhase('ringing');
+      giveUpTimer.current = setTimeout(giveUp, alarmConfig.maxSec * 1000);
+    });
     return () => {
+      cancelled = true;
       clearInterval(renew);
       clearTimeout(giveUpTimer.current);
       seq.current?.stop();
@@ -193,6 +216,7 @@ export default function AlarmScreen() {
     const s = steps.current[currentIndex()];
     if (!s) return;
     updateSettings({ excluded: [...new Set([...getSettings().excluded, s.soundId])] });
+    if (ring.current) dropExcludedFromPlan(ring.current.alarmId, ring.current.occurrenceAt); // 스누즈로 다시 울릴 때 안 나오게
     setInfo(`다음부터 "${s.title}"은(는) 쓰지 않아요`);
   };
 
@@ -215,7 +239,9 @@ export default function AlarmScreen() {
     if (phase !== 'asking') return;
     const t = setTimeout(() => answer(null), ASK_SEC * 1000);
     return () => clearTimeout(t);
-  });
+    // 질문이 뜬 순간부터 한 번만 잰다(다른 렌더로 다시 시작하지 않게). answer는 finished ref로 한 번만 돈다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   const recheckResponded = async () => {
     stopRinging();
@@ -252,7 +278,7 @@ export default function AlarmScreen() {
       )}
       {phase === 'recheck_missed' && (
         <>
-          <Text style={styles.big}>다시 잠드신 것 같아요</Text>
+          <Text style={styles.big}>기본 알람음으로 깨워요</Text>
           <Button title="끄기" onPress={() => finishAlarm(null).then(leave)} />
         </>
       )}

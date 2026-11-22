@@ -43,7 +43,29 @@ export function getEvents(): readonly AlarmEvent[] {
 }
 
 /** 아직 안 올린 이벤트를 Firestore에 올린다(C11). 실패해도 던지지 않는다 */
-export async function syncPending(): Promise<{ synced: number; failed: number }> {
+let running: Promise<{ synced: number; failed: number }> | null = null;
+let again = false;
+
+/** 겹쳐 불러도 업로드는 하나만 돈다. 도는 중에 부르면 끝난 뒤 한 번 더 돌아 그 사이 바뀐 기록도 올린다 */
+export function syncPending(): Promise<{ synced: number; failed: number }> {
+  if (running) {
+    again = true;
+    return running;
+  }
+  running = (async () => {
+    let r = { synced: 0, failed: 0 };
+    do {
+      again = false;
+      r = await uploadOnce();
+    } while (again);
+    return r;
+  })().finally(() => {
+    running = null;
+  });
+  return running;
+}
+
+async function uploadOnce(): Promise<{ synced: number; failed: number }> {
   if (!isFirebaseConfigured) return { synced: 0, failed: 0 }; // .env 없음: 기기 기록만(C11)
   const { events, syncedIds } = useEventStore.getState();
   const todo = events.filter((e) => !syncedIds.includes(e.eventId));
@@ -53,7 +75,7 @@ export async function syncPending(): Promise<{ synced: number; failed: number }>
       await uploadEvent(e.eventId, e as unknown as Record<string, unknown>);
       // 올리는 사이 같은 eventId가 덮어써졌으면 새 내용이 아직 안 올라갔으니 표시하지 않는다
       if (getEvents().find((x) => x.eventId === e.eventId) === e)
-        useEventStore.setState((s) => ({ syncedIds: [...s.syncedIds, e.eventId] }));
+        useEventStore.setState((s) => (s.syncedIds.includes(e.eventId) ? s : { syncedIds: [...s.syncedIds, e.eventId] }));
       synced++;
     } catch {
       // 다음 실행 때 다시
