@@ -43,6 +43,17 @@ export async function openNotificationSettings(): Promise<void> {
   }
 }
 
+/** 오프셋 포함 ISO 8601, 초까지(contracts 1절). 예: 2026-11-22T07:00:00+09:00 */
+export function toIsoLocal(ms: number): IsoTime {
+  const d = new Date(ms);
+  const p = (n: number) => String(Math.trunc(Math.abs(n))).padStart(2, '0');
+  const off = -d.getTimezoneOffset();
+  return (
+    `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` +
+    `${off >= 0 ? '+' : '-'}${p(off / 60)}:${p(off % 60)}`
+  );
+}
+
 /** 지금부터 seconds 뒤 한 번 울리는 알람. 앱이 complete할 때까지 멈추지 않는다. */
 export async function scheduleTestAlarm(seconds: number): Promise<string> {
   const at = new Date(Date.now() + seconds * 1000);

@@ -9,15 +9,18 @@ import {
   raiseMediaVolume,
   releaseNativeRing,
   restoreMediaVolume,
+  toIsoLocal,
 } from '@/lib/alarm';
-import { isFirebaseConfigured, uploadEvent } from '@/lib/firebase';
 import { playSequence, type SequenceHandle, type Step } from '@/lib/sequence-player';
+import { appendEvent, syncPending } from '@/stores/event-store';
+import type { AlarmEvent, PlayedStage, Stage } from '@/types/contracts';
 
 // 프로토타입(I-1) 알람 울림 화면. 앱이 소리를 단계별로 바꿔 틀고, 기본 알람음은 그동안 hold로 끈다.
 // 모든 단계가 끝나면 hold를 풀어 기본 알람음(안전장치)이 울린다.
-const STEPS: Step[] = [
-  { source: require('@/assets/prototype/proto_soft.wav'), volume: 0.4, seconds: 15 },
-  { source: require('@/assets/prototype/proto_beep.wav'), volume: 0.7, seconds: 15 },
+// 끄고 답하면 C4 AlarmEvent로 기기에 저장하고 Firestore에 올린다(I-4). 계획(planAlarm, I-7)이 생기면 I-9에서 STEPS를 계획으로 바꾼다.
+const STEPS: (Step & { soundId: string })[] = [
+  { soundId: 'proto_soft', source: require('@/assets/prototype/proto_soft.wav'), volume: 0.4, seconds: 15 },
+  { soundId: 'proto_beep', source: require('@/assets/prototype/proto_beep.wav'), volume: 0.7, seconds: 15 },
 ];
 const HOLD_SEC = 30;
 const HOLD_RENEW_MS = 20_000;
@@ -33,10 +36,27 @@ export default function AlarmScreen() {
   const [info, setInfo] = useState('');
   const seq = useRef<SequenceHandle | null>(null);
   const stepStartedAt = useRef(0); // 단계가 시작될 때마다 onStep에서 채운다
-  const dismissed = useRef<{ step: number; secInStep: number } | null>(null);
+  const ringStartedAt = useRef(0);
+  const played = useRef<PlayedStage[]>([]); // 끝난 구간(C6)
+
+  // 지금 구간을 end로 닫아 played에 넣는다. i는 STEPS 순번, STEPS.length 이상이면 안전장치
+  const closeStage = (i: number, end: PlayedStage['end']) => {
+    const s = STEPS[i];
+    played.current.push({
+      stage: s ? ((i + 1) as Stage) : 'safety',
+      soundId: s ? s.soundId : null,
+      volume: s ? s.volume : 1,
+      startedAt: toIsoLocal(stepStartedAt.current),
+      playedSec: (Date.now() - stepStartedAt.current) / 1000,
+      end,
+      features: null, // 계획 없음(I-9에서 StagePlan.features 복사)
+    });
+  };
 
   useEffect(() => {
     let renew: ReturnType<typeof setInterval> | undefined;
+    ringStartedAt.current = Date.now();
+    stepStartedAt.current = Date.now();
     (async () => {
       const volume = raiseMediaVolume(); // hold 전에: 미디어 볼륨 0이면 앱 소리가 무음(I-1 확인 4)
       const held = await holdNativeRing(alarmId, HOLD_SEC);
@@ -46,6 +66,7 @@ export default function AlarmScreen() {
         holdNativeRing(alarmId, HOLD_SEC);
       }, HOLD_RENEW_MS);
       seq.current = await playSequence(STEPS, (i) => {
+        if (i > 0) closeStage(i - 1, 'next');
         stepStartedAt.current = Date.now();
         setStep(i);
         if (i >= STEPS.length) {
@@ -64,8 +85,7 @@ export default function AlarmScreen() {
   }, [alarmId]);
 
   const dismiss = () => {
-    const current = seq.current?.currentStep() ?? step;
-    dismissed.current = { step: current, secInStep: (Date.now() - stepStartedAt.current) / 1000 };
+    closeStage(seq.current?.currentStep() ?? step, 'dismissed');
     seq.current?.stop();
     restoreMediaVolume();
     setPhase('asking');
@@ -75,17 +95,25 @@ export default function AlarmScreen() {
     setPhase('done');
     try {
       await finishAlarm(alarmId, state === 'awake' ? null : RECHECK_SEC[state]);
-      const d = dismissed.current;
-      const event = {
+      const occurrenceAt = toIsoLocal(ringStartedAt.current); // ponytail: 예약 시각 대신 울리기 시작한 시각(I-9에서 예약 시각으로)
+      const event: AlarmEvent = {
+        schemaVersion: 2,
+        eventId: `${alarmId}__${occurrenceAt}`,
         alarmId,
-        endedAt: new Date().toISOString(),
-        dismissedStep: d?.step ?? null,
-        secInStep: d?.secInStep ?? null,
+        occurrenceAt,
+        endedAt: toIsoLocal(Date.now()),
+        played: played.current,
+        snoozeCount: 0,
+        dismissed: true,
+        backfilled: false,
+        plan: null,
         state,
-        steps: STEPS.map((s) => ({ volume: s.volume, seconds: s.seconds })),
+        recheck: state === 'awake' ? 'none' : 'pending',
+        appVersion: '1.0.0',
       };
-      if (isFirebaseConfigured) await uploadEvent(`${alarmId}_${Date.now()}`, event);
-      setInfo(`${await debugState(alarmId)}\n기록: ${JSON.stringify(event)}`);
+      appendEvent(event);
+      const sync = await syncPending();
+      setInfo(`${await debugState(alarmId)}\n저장함 · 업로드 ${sync.synced}개, 실패 ${sync.failed}개`);
     } catch (e) {
       setInfo(`끝내기 실패: ${e}`);
     }

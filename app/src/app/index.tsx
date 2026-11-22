@@ -10,11 +10,13 @@ import {
   type Permissions,
 } from '@/lib/alarm';
 import { ensureUid, isFirebaseConfigured } from '@/lib/firebase';
+import { clearEvents, syncPending, useEventStore } from '@/stores/event-store';
 
 // 프로토타입(I-1) 첫 화면: 권한 확인, "N분 뒤 알람", Firebase 연결 확인.
 export default function HomeScreen() {
   const [perm, setPerm] = useState<Permissions | null>(null);
   const [log, setLog] = useState<string[]>([]);
+  const events = useEventStore((s) => s.events);
   const add = (line: string) => setLog((l) => [`${new Date().toLocaleTimeString()} ${line}`, ...l]);
 
   // 첫 실행 때 빠진 권한을 바로 요청하고, 설정 화면에서 돌아올 때마다 다시 읽는다.
@@ -60,6 +62,14 @@ export default function HomeScreen() {
       <View style={styles.row}>
         <Button title="1분 뒤 알람" onPress={() => schedule(60)} />
         <Button title="2분 뒤 알람" onPress={() => schedule(120)} />
+      </View>
+      <Text>
+        기기에 저장된 알람 기록 {events.length}개
+        {events.length > 0 && ` · 마지막 ${events[events.length - 1].occurrenceAt} 답 ${events[events.length - 1].state}`}
+      </Text>
+      <View style={styles.row}>
+        <Button title="기록 올리기" onPress={async () => add(`업로드 ${JSON.stringify(await syncPending())}`)} />
+        <Button title="기록 지우기(시연용)" onPress={clearEvents} />
       </View>
       {log.map((line, i) => (
         <Text key={i} style={styles.log}>
