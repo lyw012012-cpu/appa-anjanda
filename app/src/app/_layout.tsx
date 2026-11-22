@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
 import { takeRingingAlarmId } from '@/lib/alarm';
+import { onAppStart } from '@/stores/orchestrator';
 
 // 잠금 화면에서 "알람 열기"로 앱이 켜지면 JS 이벤트가 없으므로, 켜질 때·앞으로 올 때마다 울리는 알람을 확인한다.
 export default function RootLayout() {
@@ -20,6 +21,7 @@ export default function RootLayout() {
         router.replace({ pathname: '/alarm/[alarmId]', params: { alarmId } });
       }
     };
+    onAppStart().catch(() => {}); // 기록 읽기·업로드(C10)
     routeToRingingAlarm();
     const sub = AppState.addEventListener('change', (s) => s === 'active' && routeToRingingAlarm());
     return () => sub.remove();

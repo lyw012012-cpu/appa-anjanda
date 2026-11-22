@@ -2,6 +2,7 @@ import { requireOptionalNativeModule } from 'expo';
 import Constants from 'expo-constants';
 import { Linking, PermissionsAndroid } from 'react-native';
 import AlarmScheduler, { type AlarmPermissionResponse } from 'react-native-alarm-scheduler';
+import { soundAssets } from '@/data/sound-assets';
 import type { Alarm, AlarmId, AlarmPlan, IsoTime, OccurrenceRecord } from '@/types/contracts';
 
 // 프로토타입(I-1) 알람 래퍼. 화면은 라이브러리를 직접 부르지 않고 여기를 거친다.
@@ -43,23 +44,24 @@ export async function openNotificationSettings(): Promise<void> {
   }
 }
 
-/** 지금부터 seconds 뒤 한 번 울리는 알람. 앱이 complete할 때까지 멈추지 않는다. */
-export async function scheduleTestAlarm(seconds: number): Promise<string> {
-  const at = new Date(Date.now() + seconds * 1000);
-  const alarm = await AlarmScheduler.scheduleAlarmAsync({
-    hour: at.getHours(),
-    minute: at.getMinutes(),
-    timestamp: at.getTime(),
-    title: '아빠 안잔다',
-    android: {
-      alertActionMode: 'openAppOnly',
-      fullScreenTarget: 'app', // 잠금 화면 위로 우리 알람 화면을 바로 띄운다(plugins/with-show-when-locked)
-      secondaryButtonTitle: '알람 열기',
-      maxRingDurationSeconds: 0,
-    },
-  });
-  return alarm.id;
+/** 오프셋 포함 ISO 8601, 초까지(contracts 1절). 예: 2026-11-22T07:00:00+09:00 */
+export function toIsoLocal(ms: number): IsoTime {
+  const d = new Date(ms);
+  const p = (n: number) => String(Math.trunc(Math.abs(n))).padStart(2, '0');
+  const off = -d.getTimezoneOffset();
+  return (
+    `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` +
+    `${off >= 0 ? '+' : '-'}${p(off / 60)}:${p(off % 60)}`
+  );
 }
+
+// 잠금 화면 위로 우리 알람 화면을 바로 띄운다(plugins/with-show-when-locked). 앱이 complete할 때까지 멈추지 않는다.
+const ANDROID_OPTIONS = {
+  alertActionMode: 'openAppOnly',
+  fullScreenTarget: 'app',
+  secondaryButtonTitle: '알람 열기',
+  maxRingDurationSeconds: 0,
+} as const;
 
 /** 앱이 열릴 때 지금 울리는 알람이 있으면 그 ID. 처리했다고 표시도 한다. */
 export async function takeRingingAlarmId(): Promise<string | null> {
@@ -105,17 +107,32 @@ export function restoreMediaVolume(): void {
   savedMediaVolume = null;
 }
 
-/** 알람을 끝낸다. recheckSec이 있으면 그만큼 뒤에 재확인 알람(followUp)을 건다. */
-export async function finishAlarm(alarmId: string, recheckSec: number | null): Promise<void> {
+/** 지금 울리는 알람을 끝낸다. recheckSec이 있으면 그만큼 뒤에 재확인 알람(followUp)을 건다. */
+export async function finishAlarm(recheckSec: number | null): Promise<void> {
   const context = await AlarmScheduler.getCurrentAlarmContextAsync();
-  const occurrenceId = context?.occurrenceId ?? alarmId;
+  if (!context) return;
+  const alarmId = context.id;
+  const occurrenceId = context.occurrenceId ?? alarmId;
   await AlarmScheduler.resolveAlarmOccurrenceAsync(occurrenceId, {
     outcome: 'completed',
-    next: recheckSec ? { delaySeconds: recheckSec, relationship: 'followUp' } : undefined,
+    // metadata(우리 alarmId·occurrenceAt)를 재확인 알람에도 넘긴다
+    next: recheckSec ? { delaySeconds: recheckSec, relationship: 'followUp', metadata: context.metadata } : undefined,
     idempotencyKey: `finish:${occurrenceId}`,
   });
   // 재확인을 걸었으면 complete가 그것까지 지울 수 있어 부르지 않는다. 울림이 남으면 화면의 상태 표시로 확인(I-1 확인 항목).
   if (!recheckSec) await AlarmScheduler.completeNativeAlarmAsync(alarmId);
+}
+
+/** 스누즈: 지금 울림을 멈추고 delaySec 뒤 다시 울린다(라이브러리 deferred). 몇 단계부터 틀지는 화면이 정한다(C5) */
+export async function snoozeAlarm(delaySec: number): Promise<void> {
+  const context = await AlarmScheduler.getCurrentAlarmContextAsync();
+  if (!context) return;
+  const occurrenceId = context.occurrenceId ?? context.id;
+  await AlarmScheduler.resolveAlarmOccurrenceAsync(occurrenceId, {
+    outcome: 'deferred',
+    next: { delaySeconds: delaySec, relationship: 'deferred', metadata: context.metadata },
+    idempotencyKey: `snooze:${occurrenceId}`,
+  });
 }
 
 export async function debugState(alarmId: string): Promise<string> {
@@ -123,40 +140,75 @@ export async function debugState(alarmId: string): Promise<string> {
   return `울리는 중 ${s.isRinging} · 예약 남음 ${s.isScheduled} · 전체화면 ${s.canUseFullScreenIntent} · 상태 ${s.currentContext?.state ?? '-'}`;
 }
 
-// ── contracts.md C5 알람 모듈 (A). 위 프로토타입 함수를 바탕으로 I-4·I-9에서 채운다 ──
+// ── contracts.md C5 알람 모듈 (A) ──
+// 울리면 잠금 화면 위 알람 화면(app/alarm/[alarmId])이 계획대로 단계를 재생하고, 끝나면 화면이 orchestrator(C10)를 직접 부른다.
+// 그래서 onOutcome·onRecheck 구독은 쓰지 않는다.
 
-/** 다음 울릴 시각. 순수 함수. now가 정확히 그 시각이면 내일 */
+/** 다음 울릴 시각. 순수 함수(기기 시간대 기준). now가 정확히 그 시각이면 내일 */
 export function nextOccurrence(time: string, now: IsoTime): IsoTime {
-  throw new Error('nextOccurrence: 아직 구현 안 됨 (I-9)');
+  const [h, m] = time.split(':').map(Number);
+  const t = new Date(Date.parse(now));
+  const at = new Date(t);
+  at.setHours(h, m, 0, 0);
+  if (at.getTime() <= t.getTime()) at.setDate(at.getDate() + 1);
+  return toIsoLocal(at.getTime());
 }
 
-/** 이 알람의 기존 예약을 지우고 at에 plan으로 새로 예약 */
+/** 이 알람의 기존 예약을 지우고 at에 plan으로 새로 예약. 계획 자체는 orchestrator가 보관한다(C10 pending) */
 export async function scheduleOccurrence(alarm: Alarm, plan: AlarmPlan, at: IsoTime): Promise<void> {
-  throw new Error('scheduleOccurrence: 아직 구현 안 됨 (I-9)');
+  const missing = plan.stages.find((s) => !(s.soundId in soundAssets));
+  if (missing) throw new AlarmError('sound_missing', missing.soundId);
+  try {
+    // 울림마다 라이브러리 ID를 새로 쓴다(같은 ID면 지금 울리는 알람·재확인까지 지워진다). 우리 ID는 metadata.alarmId
+    // 지금 울리는 것·스누즈 대기(deferred)·재확인(followUp)은 남긴다: 다음 울림 예약과 따로 돈다
+    const ringing = (await AlarmScheduler.getCurrentAlarmContextAsync())?.id;
+    for (const a of await AlarmScheduler.getScheduledAlarmsAsync())
+      if (a.metadata?.alarmId === alarm.id && a.id !== ringing && (a.relationship ?? 'primary') === 'primary')
+        await AlarmScheduler.cancelAlarmAsync(a.id);
+    const ms = Date.parse(at);
+    const d = new Date(ms);
+    await AlarmScheduler.scheduleAlarmAsync({
+      id: `${alarm.id}_${ms}`,
+      hour: d.getHours(),
+      minute: d.getMinutes(),
+      timestamp: ms,
+      title: '아빠 안잔다',
+      android: { ...ANDROID_OPTIONS, metadata: { alarmId: alarm.id, occurrenceAt: at } },
+    });
+  } catch (e) {
+    throw new AlarmError('schedule_failed', String(e));
+  }
 }
 
 export async function cancelAlarm(alarmId: AlarmId): Promise<void> {
-  throw new Error('cancelAlarm: 아직 구현 안 됨 (I-9)');
+  for (const a of await AlarmScheduler.getScheduledAlarmsAsync())
+    if (a.metadata?.alarmId === alarmId) await AlarmScheduler.cancelAlarmAsync(a.id);
 }
 
-/** 알람 한 번이 끝날 때마다 한 번 호출(끔 / 끝까지 못 끔). 반환값은 구독 해제 함수 */
-export function onOutcome(listener: (r: OccurrenceRecord) => void): () => void {
-  throw new Error('onOutcome: 아직 구현 안 됨 (I-4)');
+/** 울리는 알람(라이브러리 ID)의 우리 알람 ID·예약 시각, 재확인(followUp)인지. 우리 예약이 아니면(옛 테스트 알람) alarmId는 라이브러리 ID */
+export async function ringingInfo(
+  nativeId: string,
+): Promise<{ alarmId: AlarmId; occurrenceAt: IsoTime; kind: 'primary' | 'snooze' | 'recheck' }> {
+  const c = await AlarmScheduler.getCurrentAlarmContextAsync();
+  const m = c?.id === nativeId ? c.metadata : undefined;
+  return {
+    alarmId: typeof m?.alarmId === 'string' ? m.alarmId : nativeId,
+    occurrenceAt: typeof m?.occurrenceAt === 'string' ? m.occurrenceAt : toIsoLocal(Date.now()),
+    kind: c?.relationship === 'followUp' ? 'recheck' : c?.relationship === 'deferred' ? 'snooze' : 'primary',
+  };
 }
 
-/** 끈 뒤 afterMin분 뒤 재확인. soft면 부드러운 소리, gentleMode면 진동만 */
+/** 끈 뒤 afterMin분 뒤 재확인(라이브러리 followUp 알람). 이 알람의 울림도 여기서 끝낸다. soft·gentleMode는 재확인 화면이 정한다 */
 export async function scheduleRecheck(eventId: string, afterMin: number, soft: boolean): Promise<void> {
-  throw new Error('scheduleRecheck: 아직 구현 안 됨 (I-9)');
+  void eventId; // 지금 울리는 알람에 건다(재확인 대상 이벤트는 orchestrator가 기억)
+  void soft;
+  await finishAlarm(afterMin * 60);
 }
 
-/** 재확인 결과. 응답 없음이면 그 시점에 다시 알람을 울린 뒤 호출 */
-export function onRecheck(listener: (eventId: string, result: 'responded' | 'no_response') => void): () => void {
-  throw new Error('onRecheck: 아직 구현 안 됨 (I-9)');
-}
-
-/** 앱 시작 시 호출. 앱이 꺼져 있는 사이 끝난 알람을 소급 판정 */
+/** 앱 시작 시 호출. ponytail: 소급 판정 없음(앱이 꺼져 있으면 기본 알람음이 울리고 기록은 안 남는다). 필요하면 getAlarmOccurrencesAsync로 */
 export async function reconcile(now: IsoTime): Promise<OccurrenceRecord[]> {
-  throw new Error('reconcile: 아직 구현 안 됨 (I-4)');
+  void now;
+  return [];
 }
 
 export class AlarmError extends Error {

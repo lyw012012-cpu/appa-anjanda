@@ -4,11 +4,12 @@
 
 | 영역 | 기술 |
 | --- | --- |
-| 앱 | Expo (React Native), TypeScript, Expo Router |
-| 상태관리 | Zustand |
-| UI | React Native Reusables (설치 여부는 PROGRESS D6에서 결정, 아직 미설치) |
-| 서버 | Firebase (Firestore, Storage, Cloud Functions) |
-| AI | Python (librosa, PyTorch) |
+| 앱 | Expo SDK 58 (React Native), TypeScript, Expo Router. 빌드는 EAS(개발 빌드·preview APK) |
+| 알람 | react-native-alarm-scheduler 1.1.0(예약·잠금 화면·기본 알람음 안전장치), expo-audio(단계별 재생), 로컬 모듈 `app/modules/media-volume`(울리는 동안 미디어 볼륨) |
+| 상태·저장 | Zustand + AsyncStorage(기기에 먼저 저장) |
+| UI | React Native 기본 컴포넌트 (React Native Reusables는 설치하지 않음, PROGRESS D6) |
+| 서버 | Firebase 익명 인증 + Firestore(기록 보관, 앱은 쓰기만). 서버 연산 없음 |
+| AI | 오프라인: Python 3.13, TensorFlow·YAMNet, librosa(소리 특징 미리 계산). 앱: TypeScript 추천(습관화 + 특징 5개 Thompson sampling 밴딧) |
 | 개발 도구 | VS Code + Claude Code |
 
 ## 폴더 구조
