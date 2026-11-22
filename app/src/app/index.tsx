@@ -19,8 +19,8 @@ import type { Alarm } from '@/types/contracts';
 const TIME_RULE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const newAlarmId = () => `a_${Math.random().toString(36).slice(2, 10).padEnd(8, '0')}`; // 1절 알람 ID
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-// 실제 알람이 울리는 안드로이드 빌드(main 기준 preview b0973a27) APK 파일. 빌드 페이지는 로그인해야 보여서 파일 주소를 쓴다
-const APK_PAGE = 'https://expo.dev/artifacts/eas/HeV0LcsT0cwvDWYiuT1L0x6oPzZIgZU-GWSFSw9ASCE.apk';
+// 실제 알람이 울리는 안드로이드 빌드(main 1f37dee 기준 preview d25b76d2) APK 파일. 빌드 페이지는 로그인해야 보여서 파일 주소를 쓴다
+const APK_PAGE = 'https://expo.dev/artifacts/eas/_AO6JZ5f6fgY4MyluMuxDVtIyUJQHqS_04j4ZzKlamc.apk';
 
 export default function HomeScreen() {
   const [perm, setPerm] = useState<Permissions | null>(null);
