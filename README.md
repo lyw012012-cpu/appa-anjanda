@@ -4,24 +4,26 @@
 
 | 영역 | 기술 |
 | --- | --- |
-| 앱 | Expo (React Native), TypeScript, Expo Router |
-| 상태관리 | Zustand |
-| UI | React Native Reusables |
-| 서버 | Firebase (Firestore, Storage, Cloud Functions) |
-| AI | Python (librosa, PyTorch) |
+| 앱 | Expo SDK 58 (React Native), TypeScript, Expo Router. 빌드는 EAS(개발 빌드·preview APK) |
+| 알람 | react-native-alarm-scheduler 1.1.0(예약·잠금 화면·기본 알람음 안전장치), expo-audio(단계별 재생), 로컬 모듈 `app/modules/media-volume`(울리는 동안 미디어 볼륨) |
+| 상태·저장 | Zustand + AsyncStorage(기기에 먼저 저장) |
+| UI | React Native 기본 컴포넌트 (React Native Reusables는 설치하지 않음, PROGRESS D6) |
+| 서버 | Firebase 익명 인증 + Firestore(기록 보관, 앱은 쓰기만). 서버 연산 없음 |
+| AI | 오프라인: Python 3.13, TensorFlow·YAMNet, librosa(소리 특징 미리 계산). 앱: TypeScript 추천(습관화 + 특징 5개 Thompson sampling 밴딧) |
 | 개발 도구 | VS Code + Claude Code |
 
 ## 폴더 구조
 ```
 app/      Expo 앱 (화면은 app/src/app, 스토어는 app/src/stores, Firebase는 app/src/lib)
 ai/       Python 특징 추출·모델 학습 (ai/README.md 참고)
+docs/     설계 문서: 요구사항·아키텍처 결정·실험 계획·이슈 초안 (docs/README.md 색인)
 .vscode/  팀 공용 VS Code 설정과 권장 확장
 .github/  PR 템플릿
 CLAUDE.md Claude Code가 읽는 프로젝트 규칙
 ```
 
 ## 처음 시작하기
-1. 필요한 것: Git, Node.js 20 이상, Python 3.11 이상, VS Code, 휴대폰의 **Expo Go** 앱
+1. 필요한 것: Git, Node.js 20 이상, Python 3.11 이상, VS Code, 휴대폰의 **Expo Go** 앱(화면 확인용. 알람 소리는 EAS 개발 빌드에서만 울림, PROGRESS D14)
 2. 저장소 받기
    ```bash
    git clone https://github.com/lyw012012-cpu/appa-anjanda.git
@@ -63,7 +65,7 @@ git add .
 git commit -m "feat: 알람 목록 화면 추가"
 git push -u origin feature/alarm-list     # GitHub에서 develop 대상으로 PR 생성
 ```
-- PR은 팀원 1명 이상이 확인한 뒤 병합합니다.
+- PR 리뷰는 필수가 아닙니다. PR을 올리면 팀원에게 링크를 공유하고, 반대 의견이 오면 맞춘 뒤 병합합니다.
 - 오래 걸리는 작업은 중간중간 `git pull origin develop`으로 최신 내용을 합쳐 충돌을 줄이세요.
 - 병합된 기능 브랜치는 삭제합니다.
 
