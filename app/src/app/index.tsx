@@ -1,8 +1,15 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { AppState, Button, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, Button, Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { getPermissions, missingPermission, openNotificationSettings, requestPermissions, type Permissions } from '@/lib/alarm';
+import {
+  IS_WEB,
+  getPermissions,
+  missingPermission,
+  openNotificationSettings,
+  requestPermissions,
+  type Permissions,
+} from '@/lib/alarm';
 import { useAlarmStore } from '@/stores/alarm-store';
 import { clearEvents, syncPending, useEventStore } from '@/stores/event-store';
 import { armAlarm, getLibrary, usePendingStore } from '@/stores/orchestrator';
@@ -12,6 +19,8 @@ import type { Alarm } from '@/types/contracts';
 const TIME_RULE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const newAlarmId = () => `a_${Math.random().toString(36).slice(2, 10).padEnd(8, '0')}`; // 1절 알람 ID
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+// 실제 알람이 울리는 안드로이드 빌드(main 기준 preview). 페이지에 설치 QR이 있다
+const APK_PAGE = 'https://expo.dev/accounts/app-anjanda/projects/appa-anjanda/builds/b0973a27-7a5d-4818-a562-161273bdbc4f';
 
 export default function HomeScreen() {
   const [perm, setPerm] = useState<Permissions | null>(null);
@@ -56,13 +65,23 @@ export default function HomeScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>아빠 안잔다</Text>
       {error && <Text style={styles.error}>{error}</Text>}
-      <Text style={styles.small}>
-        권한: 정확한 알람 {String(perm?.canScheduleExactAlarms)} · 전체 화면 {String(perm?.canUseFullScreenIntent)} · 알림{' '}
-        {String(perm?.canPostNotifications)}
-      </Text>
+      {IS_WEB ? (
+        <View style={styles.card}>
+          <Text>
+            웹 체험판입니다. 브라우저는 알람을 예약할 수 없어서, 알람을 추가한 뒤 &quot;지금 울려 보기&quot;로 3단계 울림과
+            상태 질문을 체험합니다. 재확인 알람·앱을 꺼도 울리는 알람은 안드로이드 앱에서 동작합니다.
+          </Text>
+          <Button title="안드로이드 앱 설치(APK)" onPress={() => Linking.openURL(APK_PAGE)} />
+        </View>
+      ) : (
+        <Text style={styles.small}>
+          권한: 정확한 알람 {String(perm?.canScheduleExactAlarms)} · 전체 화면 {String(perm?.canUseFullScreenIntent)} · 알림{' '}
+          {String(perm?.canPostNotifications)}
+        </Text>
+      )}
       <View style={styles.row}>
-        <Button title="권한 요청" onPress={async () => setPerm(await requestPermissions())} />
-        <Button title="알림 설정" onPress={openNotificationSettings} />
+        {!IS_WEB && <Button title="권한 요청" onPress={async () => setPerm(await requestPermissions())} />}
+        {!IS_WEB && <Button title="알림 설정" onPress={openNotificationSettings} />}
         <Button title="처음 설정" onPress={() => router.push('/setup')} />
         <Button title="소리 목록" onPress={() => router.push('/sounds')} />
         <Button title="통계" onPress={() => router.push('/stats')} />
@@ -89,6 +108,12 @@ export default function HomeScreen() {
             <View style={styles.row}>
               <Button title={a.enabled ? '끄기' : '켜기'} onPress={() => toggle(a)} />
               <Button title="삭제" onPress={() => remove(a)} />
+              {IS_WEB && plan && a.enabled && (
+                <Button
+                  title="지금 울려 보기"
+                  onPress={() => router.push({ pathname: '/alarm/[alarmId]', params: { alarmId: a.id } })}
+                />
+              )}
             </View>
           </View>
         );
@@ -96,7 +121,7 @@ export default function HomeScreen() {
       <View style={styles.row}>
         <TextInput style={styles.input} value={time} onChangeText={setTime} placeholder="07:00" />
         <Button title="추가" onPress={() => add(time)} />
-        <Button title="2분 뒤 시연 알람" onPress={() => add(hhmm(new Date(Date.now() + 2 * 60_000)))} />
+        {!IS_WEB && <Button title="2분 뒤 시연 알람" onPress={() => add(hhmm(new Date(Date.now() + 2 * 60_000)))} />}
       </View>
 
       <Text style={styles.section}>기록 (기기 저장 {events.length}개)</Text>
