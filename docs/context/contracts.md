@@ -103,7 +103,7 @@ flowchart LR
 
 | 산출물 | 위치 | 규칙 |
 |---|---|---|
-| 소리 파일 | `app/assets/sounds/<id>.<ext>` | 파이프라인이 변환해 복사. 기본: mp3, 모노, 44.1 kHz, **64 kbps 고정 비트레이트**, 30초 이하, 전체 10 MB 이하(30초 × 30개 ≈ 7 MB, I-1 결과로 바뀔 수 있음, 10절). **음량을 맞춘다**: 앞뒤 무음을 자르고(삑-쉼 사이 쉼은 유지) **소리가 나는 구간만으로 잰** RMS를 −20 dBFS로 맞추되, 피크가 −1 dBFS를 넘으면 그만큼 낮춘다 [가설]. 깨우는 크기는 앱의 단계별 재생 음량이 정한다. 특징(임베딩·`sim520`·`pitch`·`harshness`)도 맞춘 파형으로 계산한다. **단 YAMNet 입력(`embedding`·`top3`·`sim520.emb`)은 맞춘 파형이 4초보다 짧으면 이어 붙여 4초로 반복한다**: 앱은 단계 동안 소리를 반복 재생하고(`sequence-player.ts` `loop`), YAMNet은 0.96초 창이라 짧은 소리는 무음을 채워 본다. `pitch`·`harshness`·`sim520.hand`·`sim520.mel`은 반복하지 않은 파형으로 계산한다(이어 붙인 경계가 기본음 검출을 흐림) |
+| 소리 파일 | `app/assets/sounds/<id>.<ext>` | 파이프라인이 변환해 복사. 기본: mp3, 모노, 44.1 kHz, **64 kbps 고정 비트레이트**, 30초 이하, 전체 10 MB 이하(30초 × 30개 ≈ 7 MB). I-1 결과로 확정(2026-11-22): 이 형식을 expo-audio가 앱 화면에서 재생하므로 네이티브 리소스로 옮기지 않는다. **음량을 맞춘다**: 앞뒤 무음을 자르고(삑-쉼 사이 쉼은 유지) **소리가 나는 구간만으로 잰** RMS를 −20 dBFS로 맞추되, 피크가 −1 dBFS를 넘으면 그만큼 낮춘다 [가설]. 깨우는 크기는 앱의 단계별 재생 음량이 정한다. 특징(임베딩·`sim520`·`pitch`·`harshness`)도 맞춘 파형으로 계산한다. **단 YAMNet 입력(`embedding`·`top3`·`sim520.emb`)은 맞춘 파형이 4초보다 짧으면 이어 붙여 4초로 반복한다**: 앱은 단계 동안 소리를 반복 재생하고(`sequence-player.ts` `loop`), YAMNet은 0.96초 창이라 짧은 소리는 무음을 채워 본다. `pitch`·`harshness`·`sim520.hand`·`sim520.mel`은 반복하지 않은 파형으로 계산한다(이어 붙인 경계가 기본음 검출을 흐림) |
 | 자산 목록 | `app/src/data/sound-assets.ts` | 파이프라인이 생성. `export const soundAssets: Record<SoundId, number> = { bell_01: require('../../assets/sounds/bell_01.mp3'), ... }`. RN은 `require` 경로가 정적이어야 해서 손으로 쓰지 않고 생성한다 |
 
 `sounds.json`의 모든 `id`가 `soundAssets`에 있어야 한다(로더가 검사).
@@ -268,8 +268,15 @@ export class AlarmError extends Error {
 - **스누즈**: 지금 재생을 멈추고 `snoozeMin` 뒤 **2단계부터** 다시. `snoozeCount`가 `maxSnooze`를 넘으면 다음 울림은 3단계부터
 - `scheduleOccurrence` 실패는 `AlarmError`로 던진다. `soundAssets`에 없는 `soundId`면 `sound_missing`
 - 같은 occurrence에 대해 `onOutcome`은 **정확히 한 번**. `reconcile`이 돌려준 것과 `onOutcome`으로 보낸 것이 겹치면 안 된다
-- **구현(PR #10)**: `react-native-alarm-scheduler`로 예약하고, 울리면 잠금 화면 위 앱 화면이 expo-audio로 단계를 재생한다. 그동안 라이브러리 기본 알람음은 hold(30초, 20초마다 연장)로 끄고, 모든 단계가 끝나면 hold를 풀어 **안전장치**로 울린다. 앱이 죽어 연장이 끊겨도 기본 알람음이 돌아온다. 재확인은 라이브러리의 followUp 알람이다. 지금 프로토타입 함수 모양은 위와 다르고 I-4·I-9에서 맞춘다
-- **I-1에서 단계별 소리 바꾸기가 안 되면**([ai-design.md](https://github.com/lyw012012-cpu/appa-anjanda/pull/7) 8절 대안): `plan.stages[0]`만 울리고(끌 때까지 반복), 2·3단계는 재생하지 않는다. 기록 모양은 같다(`played`에 1단계만). 이 경우 C8은 그대로 두고 화면에 "단계 재생 꺼짐"을 표시한다
+- **구현(PR #10)**: `react-native-alarm-scheduler`로 예약하고, 울리면 잠금 화면 위 앱 화면이 expo-audio로 단계를 재생한다. 그동안 라이브러리 기본 알람음은 hold(30초, 20초마다 연장)로 끄고, 모든 단계가 끝나면 hold를 풀어 **안전장치**로 울린다. 앱이 죽어 연장이 끊겨도 기본 알람음이 돌아온다. 재확인은 라이브러리의 followUp 알람이다.
+- **I-1 결론(2026-11-22, 경로 ①)**: 실기기에서 정시 울림·잠금 화면 위 앱 화면(권한 모두 허용 시, 첫 실행에 요청)·1→2→3단계 소리 바꾸기·재확인·미디어 볼륨 0 모두 확인했다. 그래서 아래 대안 규칙은 쓰지 않는다. preview 10회 측정(E0)은 남음
+- **미디어 볼륨 하한**: expo-audio는 미디어 볼륨으로 나와서 미디어 볼륨이 0이면 1~3단계가 무음이다(I-1 확인 4). 울리는 동안 미디어 볼륨이 최대의 0.5보다 낮으면 0.5로 올리고, 앱 소리가 끝나면(끔·스누즈·안전장치) 원래 값으로 되돌린다(로컬 모듈 `app/modules/media-volume`, PR #41). 0.5는 안전 규칙이라 C9 실험 값이 아니다. 단계별 음량(`volume`)은 그 위에서 곱해진다
+- **구현이 위 모양과 다른 곳(2026-11-22, PR #43)**:
+  1. 네이티브 알람 ID는 울림마다 `${alarmId}_${예약 ms}`이고, 메타데이터 `{ alarmId, occurrenceAt }`로 우리 알람 ID와 예약 시각을 찾는다. `scheduleOccurrence`·`cancelAlarm`은 메타데이터의 `alarmId`로 지운다(울리는 중인 것과 재확인은 빼고)
+  2. `onOutcome`·`onRecheck` 구독은 쓰지 않는다. 결과는 울림 화면이 알기 때문에 화면이 C10 `handleOutcome`·`handleRecheck`를 직접 부른다. "정확히 한 번"은 화면의 `finished` 표시로 지킨다
+  3. 스누즈는 화면이 C10의 `snooze`·`takeSnooze`로 지금까지의 `played`·`snoozeCount`를 맡겨 두었다가 다시 울릴 때 이어 받는다. 이벤트는 스누즈가 끝난 뒤 한 번만 만든다
+  4. `reconcile`은 아직 빈 배열을 돌려준다(앱이 꺼진 사이 끝난 알람은 기록이 없음). 10절
+- (쓰지 않음, I-1에서 됨) **I-1에서 단계별 소리 바꾸기가 안 되면**([ai-design.md](https://github.com/lyw012012-cpu/appa-anjanda/pull/7) 8절 대안): `plan.stages[0]`만 울리고(끌 때까지 반복), 2·3단계는 재생하지 않는다. 기록 모양은 같다(`played`에 1단계만). 이 경우 C8은 그대로 두고 화면에 "단계 재생 꺼짐"을 표시한다
 
 ## C6. 결과 판정 규칙 (A가 C5 안에서 적용)
 
@@ -479,6 +486,7 @@ export function onAppStart(): Promise<void>;
 `recordState` 규칙: 😴 → `scheduleRecheck(eventId, recheckSleepyMin, soft: true)`, 🚶·무응답(`null`) → `recheckWakingMin`, ☀️ → 재확인 없음(`recheck: 'none'` 유지). 재확인을 예약하면 `recheck: 'pending'`. 상태 질문을 일정 시간(60초 [가설]) 안에 안 누르면 `null`로 처리한다.
 
 - 대기 중 계획 저장소 키: `appa.pending.v2`. 알람 저장소 키: `appa.alarms.v1`
+- **구현(2026-11-22, PR #43)**: `recordState`는 재확인을 예약하면서 지금 울림도 끝낸다(라이브러리가 끝내기와 다음 followUp 예약을 한 번에 함). ☀️면 재확인 없이 끝낸다. `planAlarm`(C8, B)이 던지면 임시 계획(`fallbackPlan`: 제외·거슬림 상한을 지키고 최근에 안 쓴 소리, 2단계는 1단계와 임베딩이 가장 덜 닮은 소리, 3단계는 다른 계열)을 쓰고 `reason`에 "추천 모듈 준비 중"을 적는다. 학습은 하지 않으므로 이 계획으로 모은 기록으로 추천 효과를 말하지 않는다
 - 꺼진 알람(`enabled: false`)은 3~5를 하지 않는다
 
 ## C11. Firestore
@@ -594,8 +602,8 @@ service cloud.firestore {
 
 | 항목 | 무엇에 달렸나 | 정해지면 고칠 곳 |
 |---|---|---|
-| 소리 파일 형식·최대 길이·위치(채널 소리가 네이티브 리소스면 `require` 목록 대신 리소스 이름) | I-1 알람 경로 | C3, C5 `sound_missing` |
-| 단계별 소리 바꾸기·재확인 알림이 되나, 미디어 볼륨 0일 때 | I-1 ([ai-design.md](https://github.com/lyw012012-cpu/appa-anjanda/pull/7) 8절 1~5) | C5 대안 규칙 |
+| 앱이 꺼진 사이 끝난 알람의 보충 기록(`reconcile`, `backfilled: true`). 라이브러리가 지난 울림 결과를 돌려주는지 확인 필요 | 시간이 남으면(A) | C5, C6 |
+| E0 실기기 10회(맞는 소리 비율·지연·단계 전환·볼륨 0). 지금은 몇 회 확인뿐 | I-1 남은 측정 | C5 I-1 결론 |
 | 거슬림의 0점·1점 기준 소리(3100 Hz 순음이 0.04로 차임과 거의 같게 나옴, PR #11) | 팀 거슬림 평가(E6) | C2 `harshness` |
 | 대비를 재는 방법: 지금은 임베딩 거리(`contrastMaxSim`). 음량·음높이·거칠기 축이 나으면 바꿈 | I-13 시뮬레이션, 팀 결정(ai-design.md 12절 2) | C8 규칙 9·10 |
 | 520 닮음(`hand`)과 `pitch`가 같은 기본음에서 나와 함께 움직이는지. 합성 소리 6개에서 r = −0.63(기준 0.7 아래, PR #11). 실제 목록에서 다시 잰다. 또 `hand`는 400~650 Hz 밖이면 거의 0이라, 0인 소리가 많으면 520 가중치가 배울 것이 없다 | I-3 뒤 I-2 재실행, I-13 | C4 `Features`, C2 `hand` |
