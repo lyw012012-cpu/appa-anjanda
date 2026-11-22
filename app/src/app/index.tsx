@@ -19,8 +19,8 @@ import type { Alarm } from '@/types/contracts';
 const TIME_RULE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const newAlarmId = () => `a_${Math.random().toString(36).slice(2, 10).padEnd(8, '0')}`; // 1절 알람 ID
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-// 실제 알람이 울리는 안드로이드 빌드(main 기준 preview). 페이지에 설치 QR이 있다
-const APK_PAGE = 'https://expo.dev/accounts/app-anjanda/projects/appa-anjanda/builds/b0973a27-7a5d-4818-a562-161273bdbc4f';
+// 실제 알람이 울리는 안드로이드 빌드(main 기준 preview b0973a27) APK 파일. 빌드 페이지는 로그인해야 보여서 파일 주소를 쓴다
+const APK_PAGE = 'https://expo.dev/artifacts/eas/HeV0LcsT0cwvDWYiuT1L0x6oPzZIgZU-GWSFSw9ASCE.apk';
 
 export default function HomeScreen() {
   const [perm, setPerm] = useState<Permissions | null>(null);
