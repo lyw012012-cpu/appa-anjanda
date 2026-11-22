@@ -16,7 +16,6 @@ export async function playSequence(
 ): Promise<SequenceHandle> {
   await setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'doNotMix' });
   const player = createAudioPlayer(null);
-  player.loop = true;
   let index = -1;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
@@ -31,6 +30,7 @@ export async function playSequence(
     }
     const step = steps[index];
     player.replace(step.source);
+    player.loop = true; // 웹은 replace가 <audio>를 새로 만들어 반복 설정이 사라진다. 소리마다 다시 켠다
     player.volume = step.volume;
     player.play();
     timer = setTimeout(next, step.seconds * 1000);
