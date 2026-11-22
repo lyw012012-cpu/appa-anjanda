@@ -119,8 +119,16 @@ export function restoreMediaVolume(): void {
   savedMediaVolume = null;
 }
 
+// "지금 울려 보기" 중에는 네이티브 알람이 울리는 게 아니다. 끝난 알람의 context가 남아 있을 수 있어
+// 끝내기·스누즈가 그 알람을 건드리지 않게 막는다. 알람 화면이 열릴 때마다 정한다
+let demoRing = false;
+export function setDemoRing(on: boolean): void {
+  demoRing = on;
+}
+
 /** 지금 울리는 알람을 끝낸다. recheckSec이 있으면 그만큼 뒤에 재확인 알람(followUp)을 건다. */
 export async function finishAlarm(recheckSec: number | null): Promise<void> {
+  if (demoRing) return;
   const context = await AlarmScheduler.getCurrentAlarmContextAsync();
   if (!context) return;
   const alarmId = context.id;
@@ -137,6 +145,7 @@ export async function finishAlarm(recheckSec: number | null): Promise<void> {
 
 /** 스누즈: 지금 울림을 멈추고 delaySec 뒤 다시 울린다(라이브러리 deferred). 몇 단계부터 틀지는 화면이 정한다(C5) */
 export async function snoozeAlarm(delaySec: number): Promise<void> {
+  if (demoRing) return;
   const context = await AlarmScheduler.getCurrentAlarmContextAsync();
   if (!context) return;
   const occurrenceId = context.occurrenceId ?? context.id;
