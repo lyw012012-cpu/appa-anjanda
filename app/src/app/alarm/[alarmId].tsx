@@ -12,6 +12,7 @@ import {
   releaseNativeRing,
   restoreMediaVolume,
   ringingInfo,
+  setDemoRing,
   toIsoLocal,
 } from '@/lib/alarm';
 import { playSequence, type SequenceHandle, type Step } from '@/lib/sequence-player';
@@ -45,7 +46,16 @@ type Phase = 'loading' | 'ringing' | 'asking' | 'recheck' | 'recheck_missed' | '
 type PlannedStep = Step & { soundId: string; title: string };
 
 export default function AlarmScreen() {
-  const { alarmId: nativeId } = useLocalSearchParams<{ alarmId: string }>();
+  const {
+    alarmId: nativeId,
+    demo: demoParam,
+    kind: demoKind,
+  } = useLocalSearchParams<{ alarmId: string; demo?: string; kind?: 'snooze' | 'recheck' }>();
+  // 지금 울려 보기(첫 화면): 예약된 알람 없이 이 화면을 바로 연다. 라우트 값은 우리 알람 ID. 웹·앱 같은 동작.
+  // 기본 알람음(hold)은 건드리지 않고, 스누즈·재확인은 기다리지 않고 바로 이어서 울린다(kind)
+  const demo = demoParam === '1' || IS_WEB;
+  const hold = () => (demo ? Promise.resolve(false) : holdNativeRing(nativeId, HOLD_SEC));
+  const release = () => (demo ? Promise.resolve() : releaseNativeRing(nativeId));
   const [phase, setPhase] = useState<Phase>('loading');
   const [step, setStep] = useState(0); // 단계 순번(0부터), 3이면 안전장치
   const [info, setInfo] = useState('');
@@ -108,7 +118,15 @@ export default function AlarmScreen() {
     let cancelled = false; // await 사이에 화면이 닫히면 뒤에 만든 interval·재생·타이머가 남지 않게
     (async () => {
       await storesHydrated(); // 꺼진 앱이 알람으로 켜졌으면 계획·스누즈 상태를 다 읽은 뒤에
-      const r = await ringingInfo(nativeId);
+      setDemoRing(demo);
+      // 같은 화면에서 체험 스누즈·재확인으로 다시 시작할 때를 위해 초기화
+      finished.current = false;
+      base.current = 0;
+      played.current = [];
+      snoozeCount.current = 0;
+      const r = demo
+        ? { alarmId: nativeId, occurrenceAt: toIsoLocal(Date.now()), kind: demoKind ?? ('primary' as const) }
+        : await ringingInfo(nativeId);
       if (cancelled) return;
       const plan = planForRinging(r.alarmId);
       const titleOf = (id: string) => getLibrary().sounds.find((s) => s.id === id)?.title ?? id;
@@ -144,14 +162,14 @@ export default function AlarmScreen() {
       setPhase(phaseRef.current);
 
       const volume = raiseMediaVolume(); // hold 전에: 미디어 볼륨 0이면 앱 소리가 무음(I-1 확인 4)
-      const held = await holdNativeRing(nativeId, HOLD_SEC);
+      const held = await hold();
       if (cancelled) return;
       setInfo(
-        IS_WEB ? plan.reason : `${held ? '기본 알람음 hold 중' : '기본 알람음 hold 실패'} · 미디어 볼륨 ${volume}\n${plan.reason}`,
+        demo ? plan.reason : `${held ? '기본 알람음 hold 중' : '기본 알람음 hold 실패'} · 미디어 볼륨 ${volume}\n${plan.reason}`,
       );
       renew = setInterval(() => {
         raiseMediaVolume(); // 잠결에 볼륨을 내렸으면 다시 올린다
-        holdNativeRing(nativeId, HOLD_SEC);
+        hold();
       }, HOLD_RENEW_MS);
       const handle = await playSequence(steps.current.slice(base.current), (j) => {
         const i = base.current + j;
@@ -161,7 +179,7 @@ export default function AlarmScreen() {
         if (i >= steps.current.length) {
           clearInterval(renew);
           restoreMediaVolume(); // 안전장치는 알람 볼륨으로 울린다
-          releaseNativeRing(nativeId);
+          release();
           if (r.kind === 'recheck') {
             // 재확인에 응답 없음 → 다시 잠듦으로 기록하고 기본 알람음으로 깨운다(C5)
             if (recheckEventId.current) handleRecheck(recheckEventId.current, 'no_response');
@@ -178,7 +196,7 @@ export default function AlarmScreen() {
       // 소리 로드 실패 등: 앱 소리를 포기하고 기본 알람음(안전장치)으로. 알람은 실패해도 울려야 한다
       clearInterval(renew);
       restoreMediaVolume();
-      releaseNativeRing(nativeId);
+      release();
       if (cancelled) return;
       setInfo(`앱 소리 실패 → 기본 알람음: ${e}`);
       // 울림을 모르거나 재확인이면 끄기만(재확인은 gave_up 기록 대상이 아님)
@@ -196,7 +214,11 @@ export default function AlarmScreen() {
       restoreMediaVolume();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nativeId]);
+  }, [nativeId, demoKind]);
+
+  // 체험: 스누즈·재확인을 기다리지 않고 같은 화면에서 바로 이어 울린다
+  const demoNext = (kind: 'snooze' | 'recheck') =>
+    router.replace({ pathname: '/alarm/[alarmId]', params: { alarmId: nativeId, demo: '1', kind } });
 
   const stopRinging = () => {
     clearTimeout(giveUpTimer.current);
@@ -218,6 +240,7 @@ export default function AlarmScreen() {
     finished.current = true;
     const { alarmId, occurrenceAt } = ring.current;
     await snooze(alarmId, { occurrenceAt, played: played.current, snoozeCount: snoozeCount.current });
+    if (demo) return demoNext('snooze');
     leave(); // 같은 화면이 열려 있으면 다시 울릴 때 새로 열리지 않는다(_layout)
   };
 
@@ -237,6 +260,7 @@ export default function AlarmScreen() {
     try {
       await record(true);
       await recordState(eventIdOf(alarmId, occurrenceAt), state);
+      if (demo && state !== 'awake') return demoNext('recheck'); // 실제로는 3분(졸려요)·7분 뒤
       leave(); // 첫 화면 카드에 다음 계획(소리 3개·이유)이 보인다
     } catch (e) {
       setInfo(`끝내기 실패: ${e}`);

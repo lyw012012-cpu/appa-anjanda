@@ -68,8 +68,9 @@ export default function HomeScreen() {
       {IS_WEB ? (
         <View style={styles.card}>
           <Text>
-            웹 체험판입니다. 브라우저는 알람을 예약할 수 없어서, 알람을 추가한 뒤 &quot;지금 울려 보기&quot;로 3단계 울림과
-            상태 질문을 체험합니다. 재확인 알람·앱을 꺼도 울리는 알람은 안드로이드 앱에서 동작합니다.
+            웹 체험판입니다. 브라우저는 알람을 예약할 수 없어서, 알람을 추가한 뒤 &quot;지금 울려 보기&quot;로 3단계 울림·상태
+            질문·스누즈·재확인을 체험합니다(체험에서는 스누즈·재확인을 기다리지 않고 바로 울림). 정해진 시각에 울리는 알람은
+            안드로이드 앱에서 동작합니다.
           </Text>
           <Button title="안드로이드 앱 설치(APK)" onPress={() => Linking.openURL(APK_PAGE)} />
         </View>
@@ -108,10 +109,10 @@ export default function HomeScreen() {
             <View style={styles.row}>
               <Button title={a.enabled ? '끄기' : '켜기'} onPress={() => toggle(a)} />
               <Button title="삭제" onPress={() => remove(a)} />
-              {IS_WEB && plan && a.enabled && (
+              {plan && a.enabled && (
                 <Button
                   title="지금 울려 보기"
-                  onPress={() => router.push({ pathname: '/alarm/[alarmId]', params: { alarmId: a.id } })}
+                  onPress={() => router.push({ pathname: '/alarm/[alarmId]', params: { alarmId: a.id, demo: '1' } })}
                 />
               )}
             </View>
