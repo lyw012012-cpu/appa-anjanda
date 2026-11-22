@@ -180,6 +180,16 @@ export async function scheduleOccurrence(alarm: Alarm, plan: AlarmPlan, at: IsoT
   }
 }
 
+/** 예약이 살아 있는 우리 알람 ID: 다음 처음 울림(primary)이 예약됐거나 지금 울리는 것 */
+export async function armedAlarmIds(): Promise<Set<AlarmId>> {
+  const ids = new Set<AlarmId>();
+  const ringing = (await AlarmScheduler.getCurrentAlarmContextAsync())?.metadata?.alarmId;
+  if (typeof ringing === 'string') ids.add(ringing);
+  for (const a of await AlarmScheduler.getScheduledAlarmsAsync())
+    if ((a.relationship ?? 'primary') === 'primary' && typeof a.metadata?.alarmId === 'string') ids.add(a.metadata.alarmId);
+  return ids;
+}
+
 export async function cancelAlarm(alarmId: AlarmId): Promise<void> {
   for (const a of await AlarmScheduler.getScheduledAlarmsAsync())
     if (a.metadata?.alarmId === alarmId) await AlarmScheduler.cancelAlarmAsync(a.id);

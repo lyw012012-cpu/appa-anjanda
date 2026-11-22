@@ -6,6 +6,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { alarmConfig, recommendConfig } from '@/config';
 import {
+  armedAlarmIds,
   cancelAlarm,
   finishAlarm,
   nextOccurrence,
@@ -19,7 +20,7 @@ import { planAlarm } from '@/lib/recommend';
 import { loadSoundLibrary } from '@/lib/sound-library';
 import { useAlarmStore } from '@/stores/alarm-store';
 import { appendEvent, eventsHydrated, getEvents, syncPending } from '@/stores/event-store';
-import { getSettings } from '@/stores/settings-store';
+import { getSettings, useSettingsStore } from '@/stores/settings-store';
 import type {
   Alarm,
   AlarmEvent,
@@ -225,9 +226,30 @@ export async function armAlarm(alarm: Alarm): Promise<void> {
   }
 }
 
-/** 앱 시작 시: reconcile → handleOutcome 반복 → syncPending */
+type Persisted = { persist: { hasHydrated: () => boolean; onFinishHydration: (fn: () => void) => () => void } };
+const whenHydrated = (s: Persisted) =>
+  s.persist.hasHydrated()
+    ? Promise.resolve()
+    : new Promise<void>((resolve) => {
+        const off = s.persist.onFinishHydration(() => {
+          off();
+          resolve();
+        });
+      });
+
+/** 기기 저장소 4개를 다 읽을 때까지. 꺼진 앱이 알람으로 켜지면 읽기 전에 계획·스누즈·알람 목록을 쓰지 않게 */
+export function storesHydrated(): Promise<void> {
+  return Promise.all([eventsHydrated(), whenHydrated(usePendingStore), whenHydrated(useAlarmStore), whenHydrated(useSettingsStore)]).then(
+    () => undefined,
+  );
+}
+
+/** 앱 시작 시: reconcile → handleOutcome 반복 → syncPending → 예약이 빠진 켜진 알람 다시 예약 */
 export async function onAppStart(): Promise<void> {
-  await eventsHydrated();
+  await storesHydrated();
   for (const r of await reconcile(toIsoLocal(Date.now()))) await handleOutcome(r);
-  await syncPending();
+  void syncPending();
+  // 앱이 꺼진 채 기본 알람음으로 끝난 울림은 handleOutcome이 없어 다음 예약이 빠진다. 울리는 중인 알람은 건드리지 않는다
+  const armed = await armedAlarmIds();
+  for (const a of useAlarmStore.getState().alarms) if (a.enabled && !armed.has(a.id)) await armAlarm(a);
 }

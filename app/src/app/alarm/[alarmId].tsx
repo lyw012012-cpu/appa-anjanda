@@ -23,9 +23,11 @@ import {
   planForRinging,
   recordState,
   snooze,
+  storesHydrated,
   takeSnooze,
   usePendingStore,
 } from '@/stores/orchestrator';
+import { getEvents } from '@/stores/event-store';
 import { getSettings, updateSettings } from '@/stores/settings-store';
 import type { PlayedStage, Stage, StateAnswer } from '@/types/contracts';
 
@@ -104,6 +106,7 @@ export default function AlarmScreen() {
     let renew: ReturnType<typeof setInterval> | undefined;
     let cancelled = false; // await 사이에 화면이 닫히면 뒤에 만든 interval·재생·타이머가 남지 않게
     (async () => {
+      await storesHydrated(); // 꺼진 앱이 알람으로 켜졌으면 계획·스누즈 상태를 다 읽은 뒤에
       const r = await ringingInfo(nativeId);
       if (cancelled) return;
       const plan = planForRinging(r.alarmId);
@@ -126,9 +129,12 @@ export default function AlarmScreen() {
         base.current = snoozeCount.current > alarmConfig.maxSnooze ? 2 : 1;
       }
       recheckEventId.current = r.kind === 'recheck' ? (usePendingStore.getState().recheckEvent[r.alarmId] ?? null) : null;
+      // 재확인은 방금 끈 울림의 1단계 소리로(대기 계획은 이미 다음 울림 것이라 쓰지 않는다)
+      const first =
+        getEvents().find((e) => e.eventId === recheckEventId.current)?.plan?.stages[0] ?? plan.stages[0];
       steps.current =
         r.kind === 'recheck'
-          ? [toStep(plan.stages[0].soundId, Math.min(0.3, plan.stages[0].volume), ASK_SEC)]
+          ? [toStep(first.soundId, Math.min(0.3, first.volume), ASK_SEC)]
           : plan.stages.map((s) => toStep(s.soundId, s.volume, alarmConfig.stageSec));
       setView(steps.current);
       setStep(base.current);
