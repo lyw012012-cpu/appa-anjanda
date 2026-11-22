@@ -114,11 +114,24 @@ export async function finishAlarm(recheckSec: number | null): Promise<void> {
   const occurrenceId = context.occurrenceId ?? alarmId;
   await AlarmScheduler.resolveAlarmOccurrenceAsync(occurrenceId, {
     outcome: 'completed',
-    next: recheckSec ? { delaySeconds: recheckSec, relationship: 'followUp' } : undefined,
+    // metadata(우리 alarmId·occurrenceAt)를 재확인 알람에도 넘긴다
+    next: recheckSec ? { delaySeconds: recheckSec, relationship: 'followUp', metadata: context.metadata } : undefined,
     idempotencyKey: `finish:${occurrenceId}`,
   });
   // 재확인을 걸었으면 complete가 그것까지 지울 수 있어 부르지 않는다. 울림이 남으면 화면의 상태 표시로 확인(I-1 확인 항목).
   if (!recheckSec) await AlarmScheduler.completeNativeAlarmAsync(alarmId);
+}
+
+/** 스누즈: 지금 울림을 멈추고 delaySec 뒤 다시 울린다(라이브러리 deferred). 몇 단계부터 틀지는 화면이 정한다(C5) */
+export async function snoozeAlarm(delaySec: number): Promise<void> {
+  const context = await AlarmScheduler.getCurrentAlarmContextAsync();
+  if (!context) return;
+  const occurrenceId = context.occurrenceId ?? context.id;
+  await AlarmScheduler.resolveAlarmOccurrenceAsync(occurrenceId, {
+    outcome: 'deferred',
+    next: { delaySeconds: delaySec, relationship: 'deferred', metadata: context.metadata },
+    idempotencyKey: `snooze:${occurrenceId}`,
+  });
 }
 
 export async function debugState(alarmId: string): Promise<string> {
@@ -173,13 +186,13 @@ export async function cancelAlarm(alarmId: AlarmId): Promise<void> {
 /** 울리는 알람(라이브러리 ID)의 우리 알람 ID·예약 시각, 재확인(followUp)인지. 우리 예약이 아니면(옛 테스트 알람) alarmId는 라이브러리 ID */
 export async function ringingInfo(
   nativeId: string,
-): Promise<{ alarmId: AlarmId; occurrenceAt: IsoTime; isRecheck: boolean }> {
+): Promise<{ alarmId: AlarmId; occurrenceAt: IsoTime; kind: 'primary' | 'snooze' | 'recheck' }> {
   const c = await AlarmScheduler.getCurrentAlarmContextAsync();
   const m = c?.id === nativeId ? c.metadata : undefined;
   return {
     alarmId: typeof m?.alarmId === 'string' ? m.alarmId : nativeId,
     occurrenceAt: typeof m?.occurrenceAt === 'string' ? m.occurrenceAt : toIsoLocal(Date.now()),
-    isRecheck: c?.relationship === 'followUp',
+    kind: c?.relationship === 'followUp' ? 'recheck' : c?.relationship === 'deferred' ? 'snooze' : 'primary',
   };
 }
 

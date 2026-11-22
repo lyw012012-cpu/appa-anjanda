@@ -12,6 +12,7 @@ import {
   reconcile,
   scheduleOccurrence,
   scheduleRecheck,
+  snoozeAlarm,
   toIsoLocal,
 } from '@/lib/alarm';
 import { planAlarm } from '@/lib/recommend';
@@ -26,6 +27,7 @@ import type {
   AlarmPlan,
   Features,
   OccurrenceRecord,
+  PlayedStage,
   SoundLibrary,
   StagePlan,
   StateAnswer,
@@ -34,11 +36,13 @@ import type {
 type PendingState = {
   plans: Record<AlarmId, AlarmPlan>; // 다음 울림의 계획(C10 pending)
   recheckEvent: Record<AlarmId, string>; // 재확인을 건 이벤트(재확인 알람이 울리면 찾는다)
+  snoozes: Record<AlarmId, SnoozeState>; // 스누즈한 울림. 다시 울리면 이어서 기록한다(C5·C6)
   error: string | null; // 화면 오류 띠(C12)
 };
+export type SnoozeState = { occurrenceAt: string; played: PlayedStage[]; snoozeCount: number };
 
 export const usePendingStore = create<PendingState>()(
-  persist((): PendingState => ({ plans: {}, recheckEvent: {}, error: null }), {
+  persist((): PendingState => ({ plans: {}, recheckEvent: {}, snoozes: {}, error: null }), {
     name: 'appa.pending.v2',
     storage: createJSONStorage(() => AsyncStorage),
   }),
@@ -114,6 +118,21 @@ export function planForRinging(alarmId: AlarmId): AlarmPlan {
     usePendingStore.getState().plans[alarmId] ??
     makePlan({ id: alarmId, time: '00:00', enabled: true }, toIsoLocal(Date.now()))
   );
+}
+
+/** 스누즈: 지금까지의 기록을 남기고 snoozeMin 뒤 다시 울린다. 다시 울리면 화면이 takeSnooze로 이어 받는다 */
+export async function snooze(alarmId: AlarmId, s: SnoozeState): Promise<void> {
+  usePendingStore.setState((p) => ({ snoozes: { ...p.snoozes, [alarmId]: s } }));
+  await snoozeAlarm(alarmConfig.snoozeMin * 60);
+}
+
+export function takeSnooze(alarmId: AlarmId): SnoozeState | null {
+  const s = usePendingStore.getState().snoozes[alarmId] ?? null;
+  usePendingStore.setState((p) => {
+    const { [alarmId]: _, ...snoozes } = p.snoozes;
+    return { snoozes };
+  });
+  return s;
 }
 
 /** 알람 한 번 끝: 저장 → 업로드 시작 → 다음 계획 → 재예약. 끈 경우 화면이 상태 질문을 띄운다 */

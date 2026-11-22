@@ -65,6 +65,7 @@ export default function HomeScreen() {
         <Button title="알림 설정" onPress={openNotificationSettings} />
         <Button title="처음 설정" onPress={() => router.push('/setup')} />
         <Button title="소리 목록" onPress={() => router.push('/sounds')} />
+        <Button title="통계" onPress={() => router.push('/stats')} />
       </View>
 
       <Text style={styles.section}>알람</Text>
