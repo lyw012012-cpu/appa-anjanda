@@ -25,10 +25,13 @@ const arm = (id: string) => ARMS.find((a) => a.id === id)!;
 const mean = (a: number[]) => a.reduce((s, v) => s + v, 0) / a.length;
 const sd = (a: number[]) => Math.sqrt(a.reduce((s, v) => s + (v - mean(a)) ** 2, 0) / Math.max(1, a.length - 1));
 
-/** 짝지은 차이(같은 반복 = 같은 깨기 난수)의 평균과 대략 95% 구간 */
+// t분포 양쪽 95% 임계값(자유도 → 값). 반복 20회면 자유도 19
+const T95: Record<number, number> = { 9: 2.262, 19: 2.093, 29: 2.045, 49: 2.01 };
+
+/** 짝지은 차이(같은 반복 = 같은 깨기 난수)의 평균과 95% 구간(t분포) */
 function paired(a: number[], b: number[]) {
   const d = a.map((v, i) => v - b[i]);
-  const half = (1.96 * sd(d)) / Math.sqrt(d.length);
+  const half = (T95[d.length - 1] ?? 1.96) * (sd(d) / Math.sqrt(d.length)); // 반복이 적어 정규(1.96) 대신 t분포
   return { mean: mean(d), lo: mean(d) - half, hi: mean(d) + half };
 }
 
@@ -81,7 +84,7 @@ export function toMarkdown(res: ReturnType<typeof runSensitivity>, reps: number)
   return [
     '# 민감도 분석 (반응 모델 계수를 흔들어 보기)',
     '',
-    `> 시뮬레이션 가정 안의 결과이고 효과의 증거가 아니다. 반응 모델 계수는 모두 [가설]이다. 14일 × ${reps}회 반복, 같은 반복은 깨기 난수를 비교군끼리 공유(짝지은 차이). 괄호는 대략 95% 구간.`,
+    `> 시뮬레이션 가정 안의 결과이고 효과의 증거가 아니다. 반응 모델 계수는 모두 [가설]이다. 14일 × ${reps}회 반복, 같은 반복은 깨기 난수를 비교군끼리 공유(짝지은 차이). 괄호는 95% 구간(t분포, 자유도 ${reps - 1}).`,
     '',
     `**"이 모델이 무작위보다 안전장치까지 덜 간다"(차이 구간의 위 끝 < 0): ${total}칸 중 ${better}칸.**`,
     '',
