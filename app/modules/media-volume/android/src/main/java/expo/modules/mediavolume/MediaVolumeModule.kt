@@ -15,11 +15,11 @@ class MediaVolumeModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("MediaVolume")
 
-    // 미디어 볼륨이 최대의 minFraction보다 낮으면 올리고 원래 단계를 돌려준다. 안 바꿨거나 못 바꾸면 -1
+    // 미디어 볼륨이 최대의 minFraction보다 낮으면 올리고 원래 단계를 돌려준다. 이미 충분하면 -1, 못 바꾸면(AudioManager 없음·예외) -2
     Function("raiseTo") { minFraction: Double ->
       val a = audio()
       if (a == null) {
-        -1
+        -2
       } else {
         val max = a.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val current = a.getStreamVolume(AudioManager.STREAM_MUSIC)
@@ -28,7 +28,7 @@ class MediaVolumeModule : Module() {
           -1
         } else {
           runCatching { a.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
-            .fold(onSuccess = { current }, onFailure = { -1 })
+            .fold(onSuccess = { current }, onFailure = { -2 })
         }
       }
     }
