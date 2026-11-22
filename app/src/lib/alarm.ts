@@ -1,6 +1,6 @@
 import { requireOptionalNativeModule } from 'expo';
 import Constants from 'expo-constants';
-import { Linking, PermissionsAndroid } from 'react-native';
+import { Linking, PermissionsAndroid, Platform } from 'react-native';
 import AlarmScheduler, { type AlarmPermissionResponse } from 'react-native-alarm-scheduler';
 import { soundAssets } from '@/data/sound-assets';
 import type { Alarm, AlarmId, AlarmPlan, IsoTime, OccurrenceRecord } from '@/types/contracts';
@@ -10,8 +10,20 @@ import type { Alarm, AlarmId, AlarmPlan, IsoTime, OccurrenceRecord } from '@/typ
 
 export type Permissions = AlarmPermissionResponse;
 
+// 웹 체험판: 브라우저는 알람을 예약할 수 없다. 권한은 있는 것으로 보고 예약은 건너뛴다(계획은 그대로 세움).
+// 울림은 첫 화면의 "지금 울려 보기"로 알람 화면을 바로 연다
+export const IS_WEB = Platform.OS === 'web';
+const WEB_PERMISSIONS: Permissions = {
+  platform: 'android',
+  status: 'authorized',
+  canScheduleExactAlarms: true,
+  canOpenSettings: false,
+  canUseFullScreenIntent: true,
+  canPostNotifications: true,
+};
+
 export function getPermissions(): Promise<Permissions> {
-  return AlarmScheduler.getPermissionsAsync();
+  return IS_WEB ? Promise.resolve(WEB_PERMISSIONS) : AlarmScheduler.getPermissionsAsync();
 }
 
 /** 권한이 하나라도 없으면 true. 하나라도 꺼지면 잠금 화면에서 알람 화면이 안 뜬다(I-1 확인 2, 2026-11-20) */
@@ -158,6 +170,7 @@ export function nextOccurrence(time: string, now: IsoTime): IsoTime {
 export async function scheduleOccurrence(alarm: Alarm, plan: AlarmPlan, at: IsoTime): Promise<void> {
   const missing = plan.stages.find((s) => !(s.soundId in soundAssets));
   if (missing) throw new AlarmError('sound_missing', missing.soundId);
+  if (IS_WEB) return; // 웹 체험판: 예약 없음
   try {
     // 울림마다 라이브러리 ID를 새로 쓴다(같은 ID면 지금 울리는 알람·재확인까지 지워진다). 우리 ID는 metadata.alarmId
     // 지금 울리는 것·스누즈 대기(deferred)·재확인(followUp)은 남긴다: 다음 울림 예약과 따로 돈다

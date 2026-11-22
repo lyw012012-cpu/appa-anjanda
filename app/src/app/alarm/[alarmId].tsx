@@ -5,6 +5,7 @@ import { Button, StyleSheet, Text, View } from 'react-native';
 import { alarmConfig } from '@/config';
 import { soundAssets } from '@/data/sound-assets';
 import {
+  IS_WEB,
   finishAlarm,
   holdNativeRing,
   raiseMediaVolume,
@@ -145,7 +146,9 @@ export default function AlarmScreen() {
       const volume = raiseMediaVolume(); // hold 전에: 미디어 볼륨 0이면 앱 소리가 무음(I-1 확인 4)
       const held = await holdNativeRing(nativeId, HOLD_SEC);
       if (cancelled) return;
-      setInfo(`${held ? '기본 알람음 hold 중' : '기본 알람음 hold 실패'} · 미디어 볼륨 ${volume}\n${plan.reason}`);
+      setInfo(
+        IS_WEB ? plan.reason : `${held ? '기본 알람음 hold 중' : '기본 알람음 hold 실패'} · 미디어 볼륨 ${volume}\n${plan.reason}`,
+      );
       renew = setInterval(() => {
         raiseMediaVolume(); // 잠결에 볼륨을 내렸으면 다시 올린다
         holdNativeRing(nativeId, HOLD_SEC);
