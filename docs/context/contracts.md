@@ -272,10 +272,10 @@ export class AlarmError extends Error {
 - **I-1 결론(2026-11-22, 경로 ①)**: 실기기에서 정시 울림·잠금 화면 위 앱 화면(권한 모두 허용 시, 첫 실행에 요청)·1→2→3단계 소리 바꾸기·재확인·미디어 볼륨 0 모두 확인했다. 그래서 아래 대안 규칙은 쓰지 않는다. preview 10회 측정(E0)은 남음
 - **미디어 볼륨 하한**: expo-audio는 미디어 볼륨으로 나와서 미디어 볼륨이 0이면 1~3단계가 무음이다(I-1 확인 4). 울리는 동안 미디어 볼륨이 최대의 0.5보다 낮으면 0.5로 올리고, 앱 소리가 끝나면(끔·스누즈·안전장치) 원래 값으로 되돌린다(로컬 모듈 `app/modules/media-volume`, PR #41). 0.5는 안전 규칙이라 C9 실험 값이 아니다. 단계별 음량(`volume`)은 그 위에서 곱해진다
 - **구현이 위 모양과 다른 곳(2026-11-22, PR #43)**:
-  1. 네이티브 알람 ID는 울림마다 `${alarmId}_${예약 ms}`이고, 메타데이터 `{ alarmId, occurrenceAt }`로 우리 알람 ID와 예약 시각을 찾는다. `scheduleOccurrence`·`cancelAlarm`은 메타데이터의 `alarmId`로 지운다(울리는 중인 것과 재확인은 빼고)
+  1. 네이티브 알람 ID는 울림마다 `${alarmId}_${예약 ms}`이고, 메타데이터 `{ alarmId, occurrenceAt }`로 우리 알람 ID와 예약 시각을 찾는다. 메타데이터의 `alarmId`로 지운다. `scheduleOccurrence`(다음 울림 예약)는 처음 울림(`relationship: primary`) 예약만 지우고, 지금 울리는 것·스누즈 대기(`deferred`)·재확인(`followUp`)은 남긴다(라이브러리 `getScheduledAlarmsAsync`가 이 셋도 돌려준다). `cancelAlarm`(끄기·삭제)은 셋 모두 지우고 C10의 스누즈 상태도 지운다
   2. `onOutcome`·`onRecheck` 구독은 쓰지 않는다. 결과는 울림 화면이 알기 때문에 화면이 C10 `handleOutcome`·`handleRecheck`를 직접 부른다. "정확히 한 번"은 화면의 `finished` 표시로 지킨다
   3. 스누즈는 화면이 C10의 `snooze`·`takeSnooze`로 지금까지의 `played`·`snoozeCount`를 맡겨 두었다가 다시 울릴 때 이어 받는다. 이벤트는 스누즈가 끝난 뒤 한 번만 만든다
-  4. `reconcile`은 아직 빈 배열을 돌려준다(앱이 꺼진 사이 끝난 알람은 기록이 없음). 10절
+  4. `reconcile`은 아직 빈 배열을 돌려준다(앱이 꺼진 사이 끝난 알람은 기록이 없음). 10절. **한계**: 화면이 안 열린 울림(앱 강제 종료, 권한 꺼짐)은 기록이 없어 학습에서 빠진다. 이런 울림은 대개 못 깬 경우라 기록은 "잘 깬 쪽"으로 치우칠 수 있다. 권한을 모두 허용하면 화면이 열리므로(I-1) 드물다고 보지만 횟수는 재지 않았다
 - (쓰지 않음, I-1에서 됨) **I-1에서 단계별 소리 바꾸기가 안 되면**([ai-design.md](https://github.com/lyw012012-cpu/appa-anjanda/pull/7) 8절 대안): `plan.stages[0]`만 울리고(끌 때까지 반복), 2·3단계는 재생하지 않는다. 기록 모양은 같다(`played`에 1단계만). 이 경우 C8은 그대로 두고 화면에 "단계 재생 꺼짐"을 표시한다
 
 ## C6. 결과 판정 규칙 (A가 C5 안에서 적용)
@@ -486,7 +486,7 @@ export function onAppStart(): Promise<void>;
 `recordState` 규칙: 😴 → `scheduleRecheck(eventId, recheckSleepyMin, soft: true)`, 🚶·무응답(`null`) → `recheckWakingMin`, ☀️ → 재확인 없음(`recheck: 'none'` 유지). 재확인을 예약하면 `recheck: 'pending'`. 상태 질문을 일정 시간(60초 [가설]) 안에 안 누르면 `null`로 처리한다.
 
 - 대기 중 계획 저장소 키: `appa.pending.v2`. 알람 저장소 키: `appa.alarms.v1`
-- **구현(2026-11-22, PR #43)**: `recordState`는 재확인을 예약하면서 지금 울림도 끝낸다(라이브러리가 끝내기와 다음 followUp 예약을 한 번에 함). ☀️면 재확인 없이 끝낸다. `planAlarm`(C8, B)이 던지면 임시 계획(`fallbackPlan`: 제외·거슬림 상한을 지키고 최근에 안 쓴 소리, 2단계는 1단계와 임베딩이 가장 덜 닮은 소리, 3단계는 다른 계열)을 쓰고 `reason`에 "추천 모듈 준비 중"을 적는다. 학습은 하지 않으므로 이 계획으로 모은 기록으로 추천 효과를 말하지 않는다
+- **구현(2026-11-22, PR #43)**: `recordState`는 재확인을 예약하면서 지금 울림도 끝낸다(라이브러리가 끝내기와 다음 followUp 예약을 한 번에 함). ☀️면 재확인 없이 끝낸다. `planAlarm`(C8, B)이 던질 때만 쓰는 안전망으로 임시 계획(`fallbackPlan`: 제외·거슬림 상한을 지키고 최근에 안 쓴 소리, 2단계는 1단계와 임베딩이 가장 덜 닮은 소리, 3단계는 다른 계열)을 쓴다. 정상 입력에서 `planAlarm`은 던지지 않으므로(PR #45) 쓰이면 버그라는 뜻이라 `console.warn`을 남긴다. **표식**: 임시 계획의 `reason`은 `FALLBACK_REASON`("추천 모듈 준비 중")으로 시작한다. 분석에서는 `plan.reason.startsWith('추천 모듈 준비 중')`인 이벤트를 빼고, 이 기록으로 추천 효과를 말하지 않는다(전용 필드는 `AlarmEvent` 모양 변경이라 하지 않음). "다음부터 이 소리 빼기"를 누르면 대기 계획에서 그 소리가 든 단계만 새 계획의 같은 단계로 바꾸고(스누즈로 다시 울릴 때 안 나오게), 그 구간의 `features`는 계획과 소리가 같을 때만 복사한다(다르면 `null`)
 - 꺼진 알람(`enabled: false`)은 3~5를 하지 않는다
 
 ## C11. Firestore
